@@ -250,11 +250,15 @@ export class RedditApiService {
       return null;
     }
     
+    console.log(`[DEBUG REDDIT API] fetchUserData(${username}) called`);
+    log(`Starting fetchUserData for Reddit user: ${username}`, 'reddit-api');
+    
     try {
       log(`Fetching Reddit data for user: ${username}`, 'reddit-api');
       
       // Get user profile data
       const userData = await this.makeApiRequest(`/user/${username}/about`);
+      console.log(`[DEBUG REDDIT API] User data received from Reddit API:`, userData);
       log(`Reddit user data received: ${JSON.stringify(userData).substring(0, 300)}...`, 'reddit-api');
       
       // Check if we found a user
@@ -296,6 +300,12 @@ export class RedditApiService {
     posts: any[], 
     comments: any[]
   ): PlatformData {
+    // Log the raw data for debugging
+    log(`Processing Reddit data for ${username}`, 'reddit-api');
+    log(`Profile data: ${JSON.stringify(profile).substring(0, 300)}...`, 'reddit-api');
+    log(`Posts count: ${posts.length}`, 'reddit-api');
+    log(`Comments count: ${comments.length}`, 'reddit-api');
+    
     // Extract profile information
     const profileData = {
       displayName: profile.name,
@@ -305,6 +315,8 @@ export class RedditApiService {
       profileUrl: `https://reddit.com/user/${username}`,
       avatarUrl: profile.icon_img || profile.subreddit?.icon_img || '',
     };
+    
+    log(`Processed profile data: ${JSON.stringify(profileData)}`, 'reddit-api');
     
     // Extract activity data
     const activityData = {
