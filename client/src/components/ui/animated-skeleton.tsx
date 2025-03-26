@@ -105,7 +105,7 @@ export function AnimatedSkeleton({
         
       case "profile":
         return (
-          <motion.div
+          <div
             key={index}
             className={cn(
               "flex items-center space-x-4 relative",
@@ -142,36 +142,38 @@ export function AnimatedSkeleton({
                 {animationOverlay}
               </motion.div>
             </div>
-          </motion.div>
+          </div>
         );
         
       case "metric":
         return (
-          <motion.div
+          <div
             key={index}
             className={cn(
               "space-y-2 relative",
               className
             )}
-            {...props}
           >
             <motion.div 
               className="h-8 w-1/2 rounded-md bg-muted/70 relative overflow-hidden"
-              {...pulseAnimation}
+              initial={{ opacity: 0.7 }}
+              animate={animate ? pulseAnimation.animate : undefined}
+              transition={animate ? pulseAnimation.transition : undefined}
             >
               {animationOverlay}
             </motion.div>
             <motion.div 
               className="h-4 w-3/4 rounded-md bg-muted/70 relative overflow-hidden"
-              {...pulseAnimation}
-              transition={{ 
-                ...pulseAnimation.transition,
+              initial={{ opacity: 0.7 }}
+              animate={animate ? pulseAnimation.animate : undefined}
+              transition={animate ? {
+                ...(pulseAnimation.transition || {}),
                 delay: (index * 0.05) + 0.1 
-              }}
+              } : undefined}
             >
               {animationOverlay}
             </motion.div>
-          </motion.div>
+          </div>
         );
         
       default: // text
@@ -182,8 +184,9 @@ export function AnimatedSkeleton({
               "h-4 rounded-md bg-muted/70 relative overflow-hidden",
               className
             )}
-            {...pulseAnimation}
-            {...props}
+            initial={{ opacity: 0.7 }}
+            animate={animate ? pulseAnimation.animate : undefined}
+            transition={animate ? pulseAnimation.transition : undefined}
           >
             {animationOverlay}
           </motion.div>
