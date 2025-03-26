@@ -37,40 +37,31 @@ export default function Deletion() {
     }
   });
 
-  // Production-ready submission handler with proper error handling
+  // Handle form submission
   const onSubmit = async (values: DeletionFormValues) => {
     setSubmitting(true);
+    
     try {
-      const response = await apiRequest(
-        "POST", 
-        "/api/deletion-request", 
-        {
-          username: values.username,
-          platforms: values.platforms,
-          reason: "User-initiated deletion request via web form"
-        },
-        false
-      );
+      // Make API request
+      const response = await apiRequest("POST", "/api/deletion-request", {
+        username: values.username,
+        platforms: values.platforms,
+        reason: "User-initiated deletion request via web form"
+      }, false);
       
-      // Handle different response statuses properly
+      // Handle authentication required
       if (response.status === 401) {
-        // Unauthorized - user needs to log in
         toast({
           title: "Authentication Required",
           description: "Please log in to submit a deletion request.",
           variant: "destructive"
         });
-        
-        // In a real app, we'd redirect to login
-        // navigate("/login?redirect=/deletion");
-        
-        // For the demo, just show an error and allow another attempt
         setSubmitting(false);
         return;
       }
       
+      // Handle forbidden access
       if (response.status === 403) {
-        // Forbidden - e.g., trying to delete someone else's account
         toast({
           title: "Access Denied",
           description: "You can only request deletion for your own account.",
@@ -80,8 +71,8 @@ export default function Deletion() {
         return;
       }
       
+      // Handle other errors
       if (!response.ok) {
-        // Generic error handling for other errors
         const errorData = await response.json().catch(() => null);
         toast({
           title: "Error",
