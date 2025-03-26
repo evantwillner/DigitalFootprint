@@ -1,11 +1,135 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-display: 'Montserrat', ui-sans-serif, system-ui, sans-serif;
+  }
+  
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  body {
+    font-family: var(--font-sans);
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+  }
+}
+
+@layer components {
+  /* Glass card effects */
+  .glass-card {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
+  }
+  
+  .glass-effect {
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.03);
+  }
+  
+  /* Gradient text effects */
+  .heading-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary-foreground;
+  }
+  
+  .heading-gradient-vibrant {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600;
+  }
+  
+  .button-gradient {
+    @apply relative overflow-hidden bg-gradient-to-r from-primary to-primary-foreground hover:from-primary/90 hover:to-primary-foreground/90 text-white shadow-md;
+  }
+  
+  /* Fade in animation */
+  .fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  /* Skeleton shine effect */
+  .skeleton-shine {
+    animation: shineEffect 2s infinite linear;
+    background-size: 200% 100%;
+  }
+  
+  @keyframes shineEffect {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+  
+  /* For pulse animation in loading indicators */
+  .pulse-animation {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  
+  /* Scale animation */
+  .scale-animation {
+    animation: scale 2s ease-in-out infinite;
+  }
+  
+  @keyframes scale {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+  
+  /* Floating animation for subtle movement */
+  .floating-animation {
+    animation: floating 3s ease-in-out infinite;
+  }
+  
+  @keyframes floating {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+  
+  /* Shake animation for error states */
+  .shake-animation {
+    animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+  }
+  
+  @keyframes shake {
+    10%, 90% { transform: translateX(-1px); }
+    20%, 80% { transform: translateX(2px); }
+    30%, 50%, 70% { transform: translateX(-4px); }
+    40%, 60% { transform: translateX(4px); }
+  }
+  
+  /* Blob animation for background elements */
+  .blob-animation {
+    animation: blobAnimation 15s infinite ease;
+    filter: blur(40px);
+  }
+  
+  @keyframes blobAnimation {
+    0%, 100% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
+    25% { border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%; }
+    50% { border-radius: 50% 60% 50% 40% / 40% 40% 60% 50%; }
+    75% { border-radius: 40% 60% 50% 30% / 60% 40% 20% 40%; }
+  }
+}
 
 @layer base {
   * {
