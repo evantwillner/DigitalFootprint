@@ -9,15 +9,19 @@ import Search from "@/pages/search";
 import Results from "@/pages/results";
 import Pricing from "@/pages/pricing";
 import Deletion from "@/pages/deletion";
+import { ProtectedRoute } from "@/lib/protected-route";
+import { AuthProvider } from "@/hooks/use-auth";
+import AuthPage from "@/pages/auth-page";
 
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Home} />
+      <ProtectedRoute path="/" component={Home} />
+      <Route path="/auth" component={AuthPage} />
       <Route path="/search" component={Search} />
       <Route path="/results" component={Results} />
       <Route path="/pricing" component={Pricing} />
-      <Route path="/deletion" component={Deletion} />
+      <ProtectedRoute path="/deletion" component={Deletion} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -26,10 +30,12 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Layout>
-        <Router />
-      </Layout>
-      <Toaster />
+      <AuthProvider>
+        <Layout>
+          <Router />
+        </Layout>
+        <Toaster />
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

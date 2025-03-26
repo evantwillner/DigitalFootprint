@@ -142,7 +142,6 @@ export async function register(req: Request, res: Response, next: NextFunction) 
       username,
       email,
       password: hashedPassword,
-      createdAt: new Date(),
     });
     
     // Exclude sensitive information
