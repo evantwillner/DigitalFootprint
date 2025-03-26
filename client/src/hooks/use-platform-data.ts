@@ -209,11 +209,22 @@ export default function usePlatformData(): UsePlatformDataResult {
           // Use stored data if available
           console.log("usePlatformData: Found stored data");
           const parsedData = JSON.parse(storedData) as DigitalFootprintResponse;
-          console.log("usePlatformData: Parsed data:", parsedData);
           
           if (!parsedData) {
             console.error("usePlatformData: Parsed data is null or undefined");
             throw new Error("Invalid search results data format");
+          }
+          
+          // Check if we have real platform data or sample data
+          if (parsedData.platformData && parsedData.platformData.length > 0) {
+            const platform = parsedData.platformData[0].platformId;
+            const username = parsedData.platformData[0].username;
+            console.log(`usePlatformData: Found real data for ${username} on ${platform}`);
+            console.log("usePlatformData: Profile data:", parsedData.platformData[0].profileData);
+            console.log("usePlatformData: Activity data:", parsedData.platformData[0].activityData);
+            console.log("usePlatformData: Analysis results:", parsedData.platformData[0].analysisResults);
+          } else {
+            console.warn("usePlatformData: No platform data found in results");
           }
           
           setData(parsedData);

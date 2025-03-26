@@ -59,7 +59,13 @@ class PlatformApiService {
       }
       
       if (platform === 'reddit') {
-        return await redditApi.fetchUserData(username);
+        // Handle Reddit usernames that might still have u/ prefix
+        let redditUsername = username;
+        if (redditUsername.startsWith('u/')) {
+          redditUsername = redditUsername.substring(2);
+          log(`Removed 'u/' prefix from Reddit username: ${redditUsername}`, 'platform-api');
+        }
+        return await redditApi.fetchUserData(redditUsername);
       }
       
       // For other platforms, check if we have access to their API

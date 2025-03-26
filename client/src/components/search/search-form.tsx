@@ -80,15 +80,24 @@ export default function SearchForm() {
     // Make sure we have at least one platform selected
     const platforms = selectedPlatforms.length > 0 ? selectedPlatforms : [values.platform];
     
+    // Process username to handle platform-specific formats
+    let username = values.username.trim();
+    
+    // Handle Reddit-specific username format (u/username)
+    if (username.startsWith("u/") && (platforms.includes("reddit") || platforms.includes("all"))) {
+      username = username.substring(2); // Remove 'u/' prefix
+      console.log("Detected Reddit username format, converted to:", username);
+    }
+    
     // Start search with the form values and selected platforms
     searchMutation.mutate({
-      username: values.username,
+      username: username,
       platforms: platforms,
     });
     
     // For debugging
     console.log("Submitting search:", {
-      username: values.username,
+      username: username,
       platforms: platforms,
     });
   };
