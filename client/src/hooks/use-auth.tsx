@@ -48,12 +48,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Login mutation
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
-      const res = await apiRequest("POST", "/api/login", credentials);
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || "Login failed");
+      try {
+        const res = await apiRequest("POST", "/api/login", credentials);
+        return await res.json();
+      } catch (err) {
+        throw new Error(err instanceof Error ? err.message : "Login failed");
       }
-      return await res.json();
     },
     onSuccess: (user: User) => {
       queryClient.setQueryData(["/api/user"], user);
@@ -74,12 +74,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Register mutation
   const registerMutation = useMutation({
     mutationFn: async (userData: RegisterData) => {
-      const res = await apiRequest("POST", "/api/register", userData);
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || "Registration failed");
+      try {
+        const res = await apiRequest("POST", "/api/register", userData);
+        return await res.json();
+      } catch (err) {
+        throw new Error(err instanceof Error ? err.message : "Registration failed");
       }
-      return await res.json();
     },
     onSuccess: (user: User) => {
       queryClient.setQueryData(["/api/user"], user);
@@ -100,10 +100,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Logout mutation
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/logout");
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || "Logout failed");
+      try {
+        await apiRequest("POST", "/api/logout");
+      } catch (err) {
+        throw new Error(err instanceof Error ? err.message : "Logout failed");
       }
     },
     onSuccess: () => {

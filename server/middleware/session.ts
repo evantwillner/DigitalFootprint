@@ -26,7 +26,7 @@ export function setupSession(app: express.Express) {
   }
 
   // Apply session middleware
-  app.use(session(sessionConfig));
+  app.use(session(sessionConfig as any));
 
   // Add session error handling
   app.use((req: Request, res: Response, next: NextFunction) => {

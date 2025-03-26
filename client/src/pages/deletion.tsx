@@ -41,18 +41,16 @@ export default function Deletion() {
   const onSubmit = async (values: DeletionFormValues) => {
     setSubmitting(true);
     try {
-      const response = await apiRequest({
-        url: "/api/deletion-request",
-        method: "POST",
-        body: {
+      const response = await apiRequest(
+        "POST", 
+        "/api/deletion-request", 
+        {
           username: values.username,
           platforms: values.platforms,
-          // Could include additional reason information from form
           reason: "User-initiated deletion request via web form"
         },
-        // Don't throw automatically - handle specific status codes
-        throwOnError: false
-      });
+        false
+      );
       
       // Handle different response statuses properly
       if (response.status === 401) {

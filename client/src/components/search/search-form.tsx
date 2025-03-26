@@ -56,12 +56,7 @@ export default function SearchForm() {
   // Handle search mutation
   const searchMutation = useMutation({
     mutationFn: async (data: { username: string, platforms: Platform[] }) => {
-      const response = await apiRequest({
-        url: "/api/search",
-        method: "POST",
-        body: data,
-        throwOnError: true
-      });
+      const response = await apiRequest("POST", "/api/search", data);
       const result = await response.json();
       return result;
     },
