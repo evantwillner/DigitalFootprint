@@ -14,6 +14,11 @@ export default function Results() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   
+  // Log data for debugging
+  console.log("Results page - data:", data);
+  console.log("Results page - isLoading:", isLoading);
+  console.log("Results page - error:", error);
+  
   // Create a direct link to navigate to the timeline tab
   useEffect(() => {
     if (data && !isLoading) {

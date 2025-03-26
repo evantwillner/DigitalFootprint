@@ -62,6 +62,7 @@ export default function SearchForm() {
     },
     onSuccess: (data) => {
       // Store search results in sessionStorage for use in results page
+      console.log("Search successful, storing results:", data);
       sessionStorage.setItem("searchResults", JSON.stringify(data));
       navigate("/results");
     },

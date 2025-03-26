@@ -106,9 +106,16 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
     );
   }
 
-  // Data for charts
-  const timelineData = generateTimelineData();
-  const topicData = generateTopicData();
+  // Data for charts - use actual platform data if available
+  const timelineData = data.platformData[0]?.analysisResults?.activityTimeline?.map(item => ({
+    name: item.period,
+    value: item.count
+  })) || generateTimelineData();
+  
+  const topicData = data.platformData[0]?.analysisResults?.topTopics?.map(item => ({
+    name: item.topic,
+    value: item.percentage
+  })) || generateTopicData();
 
   return (
     <>

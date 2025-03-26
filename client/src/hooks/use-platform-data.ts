@@ -203,17 +203,29 @@ export default function usePlatformData(): UsePlatformDataResult {
         
         // Try to get data from sessionStorage
         const storedData = sessionStorage.getItem("searchResults");
+        console.log("usePlatformData: Checking for stored data in sessionStorage");
         
         if (storedData) {
           // Use stored data if available
+          console.log("usePlatformData: Found stored data");
           const parsedData = JSON.parse(storedData) as DigitalFootprintResponse;
+          console.log("usePlatformData: Parsed data:", parsedData);
+          
+          if (!parsedData) {
+            console.error("usePlatformData: Parsed data is null or undefined");
+            throw new Error("Invalid search results data format");
+          }
+          
           setData(parsedData);
+          console.log("usePlatformData: Data set successfully");
         } else {
           // No data found - redirect to search
+          console.warn("usePlatformData: No search results found in sessionStorage");
           navigate("/search");
           throw new Error("No search results found. Please perform a search first.");
         }
       } catch (err) {
+        console.error("usePlatformData error:", err);
         setError(err instanceof Error ? err : new Error(String(err)));
       } finally {
         setIsLoading(false);
