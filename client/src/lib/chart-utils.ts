@@ -85,10 +85,10 @@ export function generateTimelineData(months: number = 12, detailed: boolean = fa
       
       // Sample locations with varying frequencies
       const locations: LocationData[] = [
-        { city: "San Francisco", country: "USA", count: Math.floor(Math.random() * 5) + 1, coordinates: [-122.4194, 37.7749] },
-        { city: "New York", country: "USA", count: Math.floor(Math.random() * 3) + 1, coordinates: [-74.0060, 40.7128] },
-        { city: "London", country: "UK", count: Math.floor(Math.random() * 4), coordinates: [-0.1278, 51.5074] },
-        { city: "Tokyo", country: "Japan", count: Math.floor(Math.random() * 2), coordinates: [139.6503, 35.6762] }
+        { city: "San Francisco", country: "USA", count: Math.floor(Math.random() * 5) + 1, coordinates: [-122.4194, 37.7749] as [number, number] },
+        { city: "New York", country: "USA", count: Math.floor(Math.random() * 3) + 1, coordinates: [-74.0060, 40.7128] as [number, number] },
+        { city: "London", country: "UK", count: Math.floor(Math.random() * 4), coordinates: [-0.1278, 51.5074] as [number, number] },
+        { city: "Tokyo", country: "Japan", count: Math.floor(Math.random() * 2), coordinates: [139.6503, 35.6762] as [number, number] }
       ].filter(loc => loc.count > 0); // Only include locations with non-zero count
       
       // Topic classification with sentiment

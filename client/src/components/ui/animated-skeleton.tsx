@@ -58,8 +58,9 @@ export function AnimatedSkeleton({
               "h-[180px] rounded-lg bg-muted/70 overflow-hidden relative",
               className
             )}
-            {...pulseAnimation}
-            {...props}
+            initial={{ opacity: 0.7 }}
+            animate={animate ? pulseAnimation.animate : undefined}
+            transition={animate ? pulseAnimation.transition : undefined}
           >
             {animationOverlay}
             <div className="absolute bottom-0 w-full px-4 py-4 space-y-2">
@@ -78,8 +79,9 @@ export function AnimatedSkeleton({
               "w-12 h-12 rounded-full bg-muted/70 relative",
               className
             )}
-            {...pulseAnimation}
-            {...props}
+            initial={{ opacity: 0.7 }}
+            animate={animate ? pulseAnimation.animate : undefined}
+            transition={animate ? pulseAnimation.transition : undefined}
           >
             {animationOverlay}
           </motion.div>
@@ -93,8 +95,9 @@ export function AnimatedSkeleton({
               "h-40 rounded-md bg-muted/70 relative overflow-hidden",
               className
             )}
-            {...pulseAnimation}
-            {...props}
+            initial={{ opacity: 0.7 }}
+            animate={animate ? pulseAnimation.animate : undefined}
+            transition={animate ? pulseAnimation.transition : undefined}
           >
             {animationOverlay}
           </motion.div>
@@ -108,11 +111,12 @@ export function AnimatedSkeleton({
               "flex items-center space-x-4 relative",
               className
             )}
-            {...props}
           >
             <motion.div
               className="w-10 h-10 rounded-full bg-muted/70 relative overflow-hidden"
-              {...pulseAnimation}
+              initial={{ opacity: 0.7 }}
+              animate={animate ? pulseAnimation.animate : undefined}
+              transition={animate ? pulseAnimation.transition : undefined}
             >
               {animationOverlay}
             </motion.div>
@@ -120,17 +124,20 @@ export function AnimatedSkeleton({
             <div className="space-y-2 flex-1">
               <motion.div 
                 className="h-4 w-3/4 rounded-md bg-muted/70 relative overflow-hidden"
-                {...pulseAnimation}
+                initial={{ opacity: 0.7 }}
+                animate={animate ? pulseAnimation.animate : undefined}
+                transition={animate ? pulseAnimation.transition : undefined}
               >
                 {animationOverlay}
               </motion.div>
               <motion.div 
                 className="h-3 w-1/2 rounded-md bg-muted/70 relative overflow-hidden"
-                {...pulseAnimation}
-                transition={{ 
+                initial={{ opacity: 0.7 }}
+                animate={animate ? pulseAnimation.animate : undefined}
+                transition={animate ? {
                   ...pulseAnimation.transition,
                   delay: (index * 0.05) + 0.1 
-                }}
+                } : undefined}
               >
                 {animationOverlay}
               </motion.div>
