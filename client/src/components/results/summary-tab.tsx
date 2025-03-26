@@ -235,12 +235,23 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
   
   if (redditData?.analysisResults?.activityTimeline && redditData.analysisResults.activityTimeline.length > 0) {
     // Use real Reddit timeline data if available
-    timelineData = redditData.analysisResults.activityTimeline.map((item: { period: string; count: number }) => ({
-      name: item.period,
-      value: item.count
-    }));
+    console.log("Got Reddit activity timeline data:", redditData.analysisResults.activityTimeline);
+    
+    // Format month names for display
+    timelineData = redditData.analysisResults.activityTimeline.map((item: { period: string; count: number }) => {
+      const [year, month] = item.period.split('-');
+      // Format as "MMM" (e.g., "Jan")
+      const date = new Date(parseInt(year), parseInt(month) - 1);
+      const formattedMonth = date.toLocaleDateString('en-US', { month: 'short' });
+      
+      return {
+        name: formattedMonth,
+        value: item.count
+      };
+    });
   } else if (redditData) {
     // Create Reddit timeline data from available stats - create last 6 months of activity
+    console.log("No timeline data, using fallback with karma distribution");
     const now = new Date();
     const months = [];
     for (let i = 5; i >= 0; i--) {
@@ -259,8 +270,9 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
     }));
   } else {
     // Only if no Reddit data at all, create empty placeholder (should never happen with our fixes)
+    console.log("No Reddit data at all, using empty timeline");
     timelineData = [
-      { name: "", value: 0 }
+      { name: "No Data", value: 0 }
     ];
   }
   
@@ -269,12 +281,14 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
   
   if (redditData?.analysisResults?.topTopics && redditData.analysisResults.topTopics.length > 0) {
     // Use real Reddit topic data if available
+    console.log("Got Reddit topic data:", redditData.analysisResults.topTopics);
     topicData = redditData.analysisResults.topTopics.map((item: { topic: string; percentage: number }) => ({
       name: item.topic,
       value: item.percentage
     }));
   } else if (redditSpecificStats.topSubreddits.length > 0) {
     // Convert subreddits into topic data with approximated percentages
+    console.log("Using topSubreddits as fallback:", redditSpecificStats.topSubreddits);
     const totalSubreddits = redditSpecificStats.topSubreddits.length;
     
     // Use weighted distribution for the top 5 subreddits
@@ -287,6 +301,7 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
     }));
   } else {
     // Only if no Reddit subreddit data at all, create empty placeholder
+    console.log("No Reddit topic data found, using placeholder");
     topicData = [
       { name: "No topics found", value: 100 }
     ];
