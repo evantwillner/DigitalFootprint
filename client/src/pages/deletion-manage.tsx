@@ -192,13 +192,18 @@ export default function DeletionManagePage() {
                           </div>
                         </div>
                         
+                        {/* Ensure details exist and are serializable before rendering */}
                         {request.details && (
                           <>
                             <Separator />
                             <div>
                               <h4 className="text-sm font-medium mb-1">Details</h4>
                               <div className="bg-muted p-2 rounded-md text-xs font-mono overflow-auto max-h-32">
-                                <pre>{JSON.stringify(request.details, null, 2)}</pre>
+                                {/* Safe stringify with type assertion */}
+                                <pre>{typeof request.details === 'object' ? 
+                                  JSON.stringify(request.details as Record<string, unknown>, null, 2) : 
+                                  String(request.details)
+                                }</pre>
                               </div>
                             </div>
                           </>
