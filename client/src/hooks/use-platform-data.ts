@@ -222,7 +222,46 @@ export default function usePlatformData(): UsePlatformDataResult {
             console.log(`usePlatformData: Found real data for ${username} on ${platform}`);
             console.log("usePlatformData: Profile data:", parsedData.platformData[0].profileData);
             console.log("usePlatformData: Activity data:", parsedData.platformData[0].activityData);
-            console.log("usePlatformData: Analysis results:", parsedData.platformData[0].analysisResults);
+            
+            // Special debugging for chart-related data
+            if (parsedData.platformData[0].analysisResults) {
+              const results = parsedData.platformData[0].analysisResults;
+              
+              console.log("usePlatformData: Analysis results found");
+              
+              // Debug timeline data
+              if (results.activityTimeline) {
+                console.log("usePlatformData: Activity timeline data:", results.activityTimeline);
+                // Check if timeline has reasonable data for visualization
+                const hasNonZeroValues = results.activityTimeline.some(item => item.count > 0);
+                console.log("usePlatformData: Timeline has non-zero values:", hasNonZeroValues);
+              } else {
+                console.warn("usePlatformData: No activity timeline data found");
+              }
+              
+              // Debug topic breakdown
+              if (results.topTopics) {
+                console.log("usePlatformData: Topic breakdown data:", results.topTopics);
+                // Check if topics have reasonable percentages
+                const totalPercentage = results.topTopics.reduce((sum, topic) => sum + topic.percentage, 0);
+                console.log("usePlatformData: Total topic percentage:", totalPercentage);
+              } else {
+                console.warn("usePlatformData: No topic breakdown data found");
+              }
+              
+              // Debug sentiment data
+              if (results.sentimentBreakdown) {
+                console.log("usePlatformData: Sentiment data:", results.sentimentBreakdown);
+                const sentimentSum = results.sentimentBreakdown.positive + 
+                                     results.sentimentBreakdown.neutral + 
+                                     results.sentimentBreakdown.negative;
+                console.log("usePlatformData: Sentiment proportions sum:", sentimentSum);
+              } else {
+                console.warn("usePlatformData: No sentiment data found");
+              }
+            } else {
+              console.warn("usePlatformData: No analysis results found");
+            }
           } else {
             console.warn("usePlatformData: No platform data found in results");
             // Add a message to the data object to explain that no data was found
