@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
@@ -45,8 +46,16 @@
     @apply bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50;
   }
   
+  .card-gradient-soft {
+    @apply bg-gradient-to-br from-white to-purple-50/30;
+  }
+  
   .heading-gradient {
     @apply bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-indigo-600;
+  }
+  
+  .heading-gradient-vibrant {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-500;
   }
   
   .button-gradient {
@@ -58,7 +67,27 @@
   }
   
   .glass-effect {
-    @apply bg-white bg-opacity-80 backdrop-blur-sm border border-white border-opacity-20;
+    @apply bg-white/80 backdrop-blur-sm border border-white/20 shadow-xl;
+  }
+  
+  .glass-card {
+    @apply bg-white/70 backdrop-blur-md border border-white/30 shadow-lg;
+  }
+  
+  .frost-blur {
+    @apply backdrop-blur-md bg-white/40 border border-white/30;
+  }
+  
+  .float-shadow {
+    @apply shadow-[0_10px_20px_-15px_rgba(0,0,0,0.3)];
+  }
+  
+  .chart-container {
+    @apply rounded-xl p-1 bg-gradient-to-r from-purple-100/50 to-indigo-100/50;
+  }
+  
+  .stat-value {
+    @apply text-2xl font-bold text-gray-900;
   }
 }
 
