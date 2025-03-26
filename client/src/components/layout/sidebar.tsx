@@ -59,8 +59,8 @@ export default function Sidebar() {
                 "rounded-md", 
                 isActive ? "bg-blue-50" : ""
               )}>
-                <Link href={item.path}>
-                  <a className={cn(
+                <Link to={item.path}>
+                  <div className={cn(
                     "flex items-center space-x-3 p-3 rounded-md font-medium",
                     isActive 
                       ? "text-primary" 
@@ -68,7 +68,7 @@ export default function Sidebar() {
                   )}>
                     <span className="material-icons">{item.icon}</span>
                     <span>{item.name}</span>
-                  </a>
+                  </div>
                 </Link>
               </li>
             );
@@ -81,11 +81,11 @@ export default function Sidebar() {
         isMobileMenuOpen ? "block" : "hidden md:block"
       )}>
         {SIDEBAR_FOOTER_ITEMS.map((item) => (
-          <Link key={item.path} href={item.path}>
-            <a className="flex items-center space-x-3 text-gray-600 hover:text-primary p-3 rounded-md hover:bg-blue-50">
+          <Link key={item.path} to={item.path}>
+            <div className="flex items-center space-x-3 text-gray-600 hover:text-primary p-3 rounded-md hover:bg-blue-50">
               <span className="material-icons">{item.icon}</span>
               <span>{item.name}</span>
-            </a>
+            </div>
           </Link>
         ))}
       </div>
