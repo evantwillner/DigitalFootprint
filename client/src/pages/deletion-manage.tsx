@@ -193,26 +193,21 @@ export default function DeletionManagePage() {
                         </div>
                         
                         {/* Render details section if details exist */}
-                        {request.details ? (
+                        {request.details && (
                           <>
                             <Separator />
                             <div>
                               <h4 className="text-sm font-medium mb-1">Details</h4>
                               <div className="bg-muted p-2 rounded-md text-xs font-mono overflow-auto max-h-32">
                                 <pre>
-                                  {(() => {
-                                    try {
-                                      // Safely convert details to string representation
-                                      return JSON.stringify(request.details as DeletionRequestDetails, null, 2);
-                                    } catch (e) {
-                                      return "Error displaying details";
-                                    }
-                                  })()}
+                                  {typeof request.details === 'object' 
+                                    ? JSON.stringify(request.details as DeletionRequestDetails, null, 2)
+                                    : String(request.details) || "No details available"}
                                 </pre>
                               </div>
                             </div>
                           </>
-                        ) : null}
+                        )}
                       </div>
                     </CardContent>
                   </Card>

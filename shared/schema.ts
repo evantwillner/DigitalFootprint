@@ -121,7 +121,13 @@ export type SubscriptionPlan = typeof subscriptionPlans.$inferSelect;
 export type UserSubscription = typeof userSubscriptions.$inferSelect;
 
 // Define a more specific type for DeletionRequest details to use in the frontend
-export type DeletionRequestDetails = Record<string, unknown>;
+export type DeletionRequestDetails = {
+  reason?: string;
+  requestedAt?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  [key: string]: unknown;
+};
 
 // API response schema for platform data
 export const platformDataSchema = z.object({
