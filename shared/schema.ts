@@ -158,6 +158,18 @@ export const platformDataSchema = z.object({
     sentiment: z.enum(["positive", "neutral", "negative"]).optional(),
     topics: z.array(z.string()).optional(),
   })).optional(),
+  privacyMetrics: z.object({
+    exposureScore: z.number(),
+    dataCategories: z.array(z.object({
+      category: z.string(),
+      severity: z.enum(["low", "medium", "high"]),
+    })),
+    potentialConcerns: z.array(z.object({
+      issue: z.string(),
+      risk: z.enum(["low", "medium", "high"]),
+    })),
+    recommendedActions: z.array(z.string()),
+  }).optional(),
   analysisResults: z.object({
     exposureScore: z.number(),
     topTopics: z.array(z.object({
