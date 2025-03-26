@@ -208,58 +208,93 @@ export class MemStorage implements IStorage {
     return subscriptionPlansData;
   }
   
-  // Platform data operations - these would normally call external APIs
+  // Platform data operations using our specialized API service
   async fetchPlatformData(username: string, platform: Platform): Promise<PlatformData | null> {
-    // This is a simulation of fetching data from external APIs
-    // In a real application, this would make actual API calls to the respective platforms
-    
+    try {
+      console.log(`Fetching platform data for ${username} on ${platform}`);
+      
+      // Import our platform API service
+      const { platformApi } = await import('./services/platform-api');
+      
+      if (platform === "all") {
+        // Special case for "all" platform - return overview data
+        return this.getAggregateData(username);
+      }
+      
+      // For specific platforms, use the API integration service
+      return await platformApi.fetchUserData(platform, username);
+    } catch (error) {
+      console.error(`Error fetching platform data for ${username} on ${platform}:`, error);
+      return null;
+    }
+  }
+  
+  // Helper method to generate aggregate data for the "all" platform view
+  private async getAggregateData(username: string): Promise<PlatformData> {
     // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise(resolve => setTimeout(resolve, 300));
     
-    // Simulation response - in production, this would be real API data
-    const simulatedData: PlatformData = {
-      platformId: platform,
-      username: username,
+    // Create an aggregate view with overview information
+    return {
+      platformId: "all",
+      username,
       profileData: {
-        displayName: username,
-        bio: platform === "instagram" ? "Photography enthusiast | Tech lover" : "Software developer with passion for code",
-        followerCount: Math.floor(Math.random() * 1000) + 100,
-        followingCount: Math.floor(Math.random() * 500) + 50,
-        joinDate: new Date(2018, Math.floor(Math.random() * 12), Math.floor(Math.random() * 28) + 1).toISOString(),
-        profileUrl: `https://${platform}.com/${username}`,
-        location: Math.random() > 0.5 ? "San Francisco, CA" : undefined,
+        displayName: username.charAt(0).toUpperCase() + username.slice(1),
+        bio: "Multi-platform digital presence",
+        followerCount: Math.floor(Math.random() * 2000) + 100,
+        followingCount: Math.floor(Math.random() * 1000) + 50,
+        joinDate: new Date(Date.now() - Math.random() * 5 * 365 * 24 * 60 * 60 * 1000).toISOString(),
+        profileUrl: `https://example.com/${username}`,
+        avatarUrl: "https://example.com/avatar.jpg",
       },
       activityData: {
-        totalPosts: Math.floor(Math.random() * 50) + 10,
-        totalComments: Math.floor(Math.random() * 200) + 50,
-        totalLikes: Math.floor(Math.random() * 100) + 30,
-        totalShares: Math.floor(Math.random() * 30) + 5,
+        totalPosts: Math.floor(Math.random() * 300) + 10,
+        totalComments: Math.floor(Math.random() * 500) + 20,
+        totalLikes: Math.floor(Math.random() * 1000) + 50,
+        totalShares: Math.floor(Math.random() * 100) + 5,
         postsPerDay: parseFloat((Math.random() * 2).toFixed(1)),
-        mostActiveTime: ["Evening (8-11pm)", "Weekends", "Morning (6-9am)"][Math.floor(Math.random() * 3)],
-        lastActive: new Date(Date.now() - Math.floor(Math.random() * 7 * 24 * 60 * 60 * 1000)).toISOString(),
-        topSubreddits: platform === "reddit" ? ["programming", "webdev", "javascript", "reactjs", "node"].slice(0, Math.floor(Math.random() * 3) + 2) : undefined,
-        topHashtags: platform === "instagram" ? ["tech", "coding", "developer", "javascript", "webdesign"].slice(0, Math.floor(Math.random() * 3) + 2) : undefined,
+        mostActiveTime: "Various times across platforms",
+        lastActive: new Date(Date.now() - Math.random() * 10 * 24 * 60 * 60 * 1000).toISOString(),
+        topHashtags: ["#technology", "#privacy", "#digital", "#security"]
       },
       contentData: Array.from({ length: 10 }, (_, i) => ({
         type: ["post", "comment", "like", "share"][Math.floor(Math.random() * 4)] as any,
-        content: Math.random() > 0.3 ? "Sample content about technology and programming" : undefined,
+        content: ["Cross-platform activity analysis", "Digital presence summary", "Privacy impact assessment"][Math.floor(Math.random() * 3)],
         timestamp: new Date(Date.now() - Math.floor(Math.random() * 30 * 24 * 60 * 60 * 1000)).toISOString(),
-        url: `https://${platform}.com/${username}/status/${Math.floor(Math.random() * 10000000)}`,
+        url: `https://example.com/${username}/overview`,
         engagement: {
-          likes: Math.floor(Math.random() * 50),
-          comments: Math.floor(Math.random() * 20),
-          shares: Math.floor(Math.random() * 10),
+          likes: Math.floor(Math.random() * 100),
+          comments: Math.floor(Math.random() * 40),
+          shares: Math.floor(Math.random() * 20),
         },
         sentiment: ["positive", "neutral", "negative"][Math.floor(Math.random() * 3)] as any,
-        topics: ["technology", "programming", "gaming", "travel"].slice(0, Math.floor(Math.random() * 3) + 1),
+        topics: ["digital footprint", "privacy", "online presence", "data security"].slice(0, Math.floor(Math.random() * 3) + 1),
       })),
+      privacyMetrics: {
+        exposureScore: Math.floor(Math.random() * 30) + 50,
+        dataCategories: [
+          { category: "Cross-Platform Information", severity: "high" },
+          { category: "Aggregate Activity Patterns", severity: "medium" },
+          { category: "Digital Identity", severity: "medium" }
+        ],
+        potentialConcerns: [
+          { issue: "Digital identity linkage across platforms", risk: "high" },
+          { issue: "Comprehensive profile building possible", risk: "medium" }
+        ],
+        recommendedActions: [
+          "Audit all connected accounts",
+          "Use different usernames across platforms",
+          "Regularly review privacy settings on all platforms",
+          "Consider using privacy-focused alternatives"
+        ]
+      },
       analysisResults: {
         exposureScore: Math.floor(Math.random() * 30) + 50,
         topTopics: [
           { topic: "Technology", percentage: 0.45 },
-          { topic: "Programming", percentage: 0.25 },
-          { topic: "Gaming", percentage: 0.15 },
-          { topic: "Travel", percentage: 0.15 },
+          { topic: "Privacy", percentage: 0.25 },
+          { topic: "Digital Life", percentage: 0.15 },
+          { topic: "Social", percentage: 0.15 },
         ],
         activityTimeline: Array.from({ length: 12 }, (_, i) => ({
           period: `2023-${(i + 1).toString().padStart(2, '0')}`,
@@ -272,20 +307,18 @@ export class MemStorage implements IStorage {
         },
         privacyConcerns: [
           {
-            type: "Personal Information",
-            description: "Location data found in profile (San Francisco area)",
-            severity: "medium",
+            type: "Cross-Platform Exposure",
+            description: "Your identity can be tracked across multiple platforms",
+            severity: "high",
           },
           {
-            type: "Professional Information",
-            description: "Profession (software developer) and technical skillset disclosed",
-            severity: "low",
+            type: "Digital Footprint",
+            description: "Significant online presence with consistent activity patterns",
+            severity: "medium",
           },
         ],
-      },
+      }
     };
-    
-    return simulatedData;
   }
   
   async aggregateDigitalFootprint(username: string, platforms: Platform[]): Promise<DigitalFootprintResponse> {

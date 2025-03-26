@@ -1,7 +1,6 @@
 import axios from 'axios';
-import { Platform, PlatformData, platformDataSchema } from '@shared/schema';
+import { Platform, PlatformData } from '@shared/schema';
 
-// API configuration for supported platforms
 interface ApiConfig {
   baseUrl: string;
   endpoints: {
@@ -12,62 +11,6 @@ interface ApiConfig {
   };
   headers: Record<string, string>;
 }
-
-// API configuration by platform
-const API_CONFIG: Record<Exclude<Platform, 'all'>, ApiConfig> = {
-  instagram: {
-    baseUrl: 'https://graph.instagram.com/v18.0',
-    endpoints: {
-      userProfile: '/me',
-      userPosts: '/me/media',
-    },
-    headers: {
-      'Accept': 'application/json',
-    }
-  },
-  facebook: {
-    baseUrl: 'https://graph.facebook.com/v18.0',
-    endpoints: {
-      userProfile: '/me',
-      userPosts: '/me/posts',
-      userActivity: '/me/feed',
-    },
-    headers: {
-      'Accept': 'application/json',
-    }
-  },
-  twitter: {
-    baseUrl: 'https://api.twitter.com/2',
-    endpoints: {
-      userProfile: '/users/me',
-      userPosts: '/users/me/tweets',
-    },
-    headers: {
-      'Accept': 'application/json',
-    }
-  },
-  reddit: {
-    baseUrl: 'https://oauth.reddit.com',
-    endpoints: {
-      userProfile: '/api/v1/me',
-      userPosts: '/user/{username}/submitted',
-      userComments: '/user/{username}/comments',
-    },
-    headers: {
-      'Accept': 'application/json',
-    }
-  },
-  linkedin: {
-    baseUrl: 'https://api.linkedin.com/v2',
-    endpoints: {
-      userProfile: '/me',
-      userPosts: '/me/posts',
-    },
-    headers: {
-      'Accept': 'application/json',
-    }
-  }
-};
 
 /**
  * API keys and tokens
@@ -85,24 +28,100 @@ interface ApiCredentials {
 
 class ApiIntegrationService {
   private credentials: ApiCredentials = {};
-
+  private apiConfigs: Partial<Record<Platform, ApiConfig>> = {
+    instagram: {
+      baseUrl: 'https://graph.instagram.com/v18.0',
+      endpoints: {
+        userProfile: '/me',
+        userPosts: '/me/media',
+      },
+      headers: {
+        'Accept': 'application/json',
+      }
+    },
+    facebook: {
+      baseUrl: 'https://graph.facebook.com/v18.0',
+      endpoints: {
+        userProfile: '/me',
+        userPosts: '/me/posts',
+        userActivity: '/me/feed'
+      },
+      headers: {
+        'Accept': 'application/json',
+      }
+    },
+    twitter: {
+      baseUrl: 'https://api.twitter.com/2',
+      endpoints: {
+        userProfile: '/users/me',
+        userPosts: '/users/me/tweets',
+        userActivity: '/users/me/timeline'
+      },
+      headers: {
+        'Accept': 'application/json',
+      }
+    },
+    reddit: {
+      baseUrl: 'https://oauth.reddit.com/api/v1',
+      endpoints: {
+        userProfile: '/me',
+        userPosts: '/user/{username}/submitted',
+        userComments: '/user/{username}/comments'
+      },
+      headers: {
+        'Accept': 'application/json',
+      }
+    },
+    linkedin: {
+      baseUrl: 'https://api.linkedin.com/v2',
+      endpoints: {
+        userProfile: '/me',
+        userPosts: '/shares',
+        userActivity: '/socialActions'
+      },
+      headers: {
+        'Accept': 'application/json',
+      }
+    }
+  };
+  
   constructor() {
-    // In production, load credentials securely from environment or secrets manager
     this.loadCredentials();
   }
-
+  
   private loadCredentials() {
-    // Load API credentials from environment variables or other secure storage
-    Object.keys(API_CONFIG).forEach(platform => {
-      const platformKey = platform as Exclude<Platform, 'all'>;
-      this.credentials[platformKey] = {
-        apiKey: process.env[`${platformKey.toUpperCase()}_API_KEY`],
-        apiSecret: process.env[`${platformKey.toUpperCase()}_API_SECRET`],
-        accessToken: process.env[`${platformKey.toUpperCase()}_ACCESS_TOKEN`],
-      };
+    // In production, we would load these from environment variables
+    const platforms: Platform[] = ['instagram', 'facebook', 'reddit', 'twitter', 'linkedin'];
+    
+    // Check if any platform-specific API keys are available in environment
+    platforms.forEach(platform => {
+      const keyName = `${platform.toUpperCase()}_API_KEY`;
+      const secretName = `${platform.toUpperCase()}_API_SECRET`;
+      const tokenName = `${platform.toUpperCase()}_ACCESS_TOKEN`;
+      
+      this.credentials[platform] = {};
+      
+      if (process.env[keyName]) {
+        this.credentials[platform].apiKey = process.env[keyName];
+      }
+      
+      if (process.env[secretName]) {
+        this.credentials[platform].apiSecret = process.env[secretName];
+      }
+      
+      if (process.env[tokenName]) {
+        this.credentials[platform].accessToken = process.env[tokenName];
+      }
     });
+    
+    // Log which platforms have credentials (for debugging)
+    const platformsWithCredentials = platforms.filter(p => 
+      this.credentials[p]?.apiKey || this.credentials[p]?.accessToken
+    );
+    
+    console.log(`Loaded API credentials for: ${platformsWithCredentials.join(', ') || 'none'}`);
   }
-
+  
   /**
    * Fetch user profile data from a specific platform
    * @param platform Social media platform
@@ -110,331 +129,411 @@ class ApiIntegrationService {
    * @returns Platform data or null if not found
    */
   public async fetchUserData(platform: Exclude<Platform, 'all'>, username: string): Promise<PlatformData | null> {
+    console.log(`API Integration Service: Fetching data for ${username} on ${platform}`);
+    
     try {
-      // For now, in development, we're returning simulated data
-      // In production, this would make actual API calls using the configurations
-      console.log(`Fetching ${platform} data for username: ${username}`);
-      
-      // This would be replaced with actual API calls in production
-      return this.simulatePlatformData(platform, username);
+      // Check if we have credentials for this platform
+      if (this.credentials[platform]?.apiKey || this.credentials[platform]?.accessToken) {
+        // In production, we would make actual API calls here
+        // For now, we'll simulate the response with realistic patterns
+        console.log(`Using credentials to access ${platform} API`);
+        return this.simulatePlatformData(platform, username);
+      } else {
+        // No credentials available, so simulate data with a note
+        console.log(`No API credentials for ${platform}, using simulated data`);
+        return this.simulatePlatformData(platform, username);
+      }
     } catch (error) {
       console.error(`Error fetching ${platform} data for ${username}:`, error);
       return null;
     }
   }
-
+  
   /**
    * Make an actual API request to a platform
    * This would be used in production with proper API credentials
    */
   private async makeApiRequest(
-    platform: Exclude<Platform, 'all'>, 
-    endpoint: string, 
+    platform: Exclude<Platform, 'all'>,
+    endpoint: string,
     params: Record<string, string> = {}
   ): Promise<any> {
-    const config = API_CONFIG[platform];
-    const credentials = this.credentials[platform];
+    const config = this.apiConfigs[platform];
+    if (!config) {
+      throw new Error(`API configuration not found for ${platform}`);
+    }
     
-    if (!credentials?.accessToken && !credentials?.apiKey) {
+    const credentials = this.credentials[platform];
+    if (!credentials?.apiKey && !credentials?.accessToken) {
       throw new Error(`No API credentials available for ${platform}`);
     }
     
+    // Construct the API URL
+    const url = `${config.baseUrl}${endpoint}`;
+    
+    // Prepare authentication headers
     const headers = {
       ...config.headers,
-      ...(credentials.accessToken ? { 'Authorization': `Bearer ${credentials.accessToken}` } : {}),
-      ...(credentials.apiKey ? { 'X-Api-Key': credentials.apiKey } : {})
+      ...(credentials.apiKey ? { 'Authorization': `Bearer ${credentials.apiKey}` } : {}),
+      ...(credentials.accessToken ? { 'Authorization': `Bearer ${credentials.accessToken}` } : {})
     };
     
-    // Replace placeholders in the endpoint URL
-    let url = endpoint;
-    Object.entries(params).forEach(([key, value]) => {
-      url = url.replace(`{${key}}`, value);
-    });
-    
-    const response = await axios.get(`${config.baseUrl}${url}`, { headers });
-    return response.data;
+    // Make the request
+    try {
+      const response = await axios.get(url, { headers, params });
+      return response.data;
+    } catch (error) {
+      console.error(`API request to ${platform} failed:`, error);
+      throw error;
+    }
   }
-
+  
   /**
    * For development only: Simulate platform data with realistic patterns
    * In production, this would be replaced with actual API calls
    */
   private simulatePlatformData(platform: Exclude<Platform, 'all'>, username: string): PlatformData {
-    // Generate realistic looking profile data based on the platform
-    const now = new Date();
-    const joinDate = new Date(now);
-    joinDate.setFullYear(joinDate.getFullYear() - Math.floor(Math.random() * 5) - 1);
+    // Create a consistent seed for this username+platform to get deterministic results
+    const seed = username.length + platform.length;
+    const rand = (min: number, max: number) => Math.floor((seed % 10) / 10 * (max - min) + min);
     
-    // Simulate follower counts based on platform averages
-    const getFollowerCount = () => {
-      const baseCount = {
-        instagram: 500,
-        facebook: 300,
-        twitter: 200,
-        reddit: 30,
-        linkedin: 150
-      }[platform];
-      
-      // Apply a multiplier with some randomness
-      return Math.floor(baseCount * (0.5 + Math.random() * 5));
+    // Base follower counts by platform
+    const followerBase = {
+      instagram: 500,
+      facebook: 250,
+      twitter: 300,
+      reddit: 50,
+      linkedin: 150
     };
     
-    // Simulate platform-specific engagement metrics
-    const getEngagementMetrics = () => {
-      const baseEngagement = {
-        instagram: { posts: 120, comments: 300, likes: 8000, shares: 50 },
-        facebook: { posts: 80, comments: 600, likes: 5000, shares: 120 },
-        twitter: { posts: 3000, comments: 8000, likes: 15000, shares: 4000 },
-        reddit: { posts: 30, comments: 3000, likes: 20000, shares: 200 },
-        linkedin: { posts: 40, comments: 150, likes: 2000, shares: 30 }
-      }[platform];
-      
-      // Apply randomness to each metric
-      return {
-        totalPosts: Math.floor(baseEngagement.posts * (0.5 + Math.random())),
-        totalComments: Math.floor(baseEngagement.comments * (0.5 + Math.random())),
-        totalLikes: Math.floor(baseEngagement.likes * (0.5 + Math.random())),
-        totalShares: Math.floor(baseEngagement.shares * (0.5 + Math.random())),
-        postsPerDay: Math.round((Math.random() * 2 + 0.1) * 10) / 10,
-        mostActiveTime: ["Morning", "Afternoon", "Evening"][Math.floor(Math.random() * 3)],
-        lastActive: new Date(now.getTime() - Math.floor(Math.random() * 7 * 24 * 60 * 60 * 1000)).toISOString(),
-        topHashtags: this.generateHashtagsForPlatform(platform)
+    // Join date - more recent for newer platforms
+    const joinYears = {
+      facebook: 3 + rand(1, 7),  // 4-10 years ago
+      twitter: 2 + rand(1, 6),   // 3-8 years ago
+      instagram: 1 + rand(1, 5), // 2-6 years ago
+      linkedin: 2 + rand(1, 8),  // 3-10 years ago
+      reddit: rand(1, 4)         // 1-4 years ago
+    };
+    
+    const joinDate = new Date();
+    joinDate.setFullYear(joinDate.getFullYear() - joinYears[platform as keyof typeof joinYears]);
+    
+    // Display name formatting by platform
+    const formatDisplayName = (username: string, platform: Platform): string => {
+      switch(platform) {
+        case 'instagram':
+          return username.toLowerCase();
+        case 'twitter':
+          return '@' + username.toLowerCase();
+        case 'linkedin':
+          return username.split(/[._-]/).map(part => 
+            part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()
+          ).join(' ');
+        case 'reddit':
+          return 'u/' + username.toLowerCase();
+        case 'facebook':
+          return username.split(/[._-]/).map(part => 
+            part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()
+          ).join(' ');
+        default:
+          return username;
+      }
+    };
+    
+    // Generate platform-specific hashtags
+    const generateHashtagsForPlatform = (platform: Platform): string[] => {
+      const commonTags = ['tech', 'privacy', 'security', 'data'];
+      const platformSpecificTags = {
+        instagram: ['photography', 'travel', 'lifestyle', 'food', 'fitness'],
+        twitter: ['news', 'politics', 'trending', 'technology'],
+        facebook: ['events', 'family', 'friends', 'memories'],
+        reddit: [], // Reddit doesn't really use hashtags
+        linkedin: ['career', 'business', 'leadership', 'innovation', 'networking']
       };
-    };
-    
-    // Simulate bio text based on platform conventions
-    const getBio = () => {
-      const bios = {
-        instagram: "📱 Digital enthusiast | 🌍 Explorer | 🖥 Tech lover",
-        facebook: "Living life one day at a time. Tech enthusiast and privacy advocate.",
-        twitter: "Tweeting about tech, privacy, and the digital world. Opinions my own.",
-        reddit: "Redditor since ${joinYear}. Into technology, programming, and digital rights.",
-        linkedin: "Digital Technology Professional | Privacy Advocate | Software Engineering"
-      }[platform].replace('${joinYear}', joinDate.getFullYear().toString());
       
-      return bios;
+      if (platform === 'reddit') return [];
+      
+      const platformTags = platformSpecificTags[platform as keyof typeof platformSpecificTags] || [];
+      const allTags = [...commonTags, ...platformTags];
+      
+      // Get random tags but deterministic based on username+platform
+      const selectedCount = 2 + (seed % 3); // 2-4 tags
+      const selectedTags = [];
+      
+      for (let i = 0; i < selectedCount; i++) {
+        const index = (seed + i) % allTags.length;
+        selectedTags.push('#' + allTags[index]);
+      }
+      
+      return selectedTags;
     };
     
-    // Generate content samples based on platform conventions
-    const generateContent = (count: number = 10) => {
-      const contentTypes: Array<"post" | "comment" | "like" | "share"> = ["post", "comment", "like", "share"];
-      const contentTemplates = {
+    // Generate data categories specific to platform
+    const getDataCategoriesForPlatform = (platform: Platform): Array<{category: string, severity: "low" | "medium" | "high"}> => {
+      const categories = {
         instagram: [
-          "Check out this amazing tech conference! #tech #innovation",
-          "New gadget day! So excited to try this out 🚀",
-          "Beautiful sunset from my office today. #worklife",
-          "Just finished a great book on digital privacy. Highly recommend!",
-          "Coffee and coding - perfect morning ☕️💻"
+          { category: "Photos & Videos", severity: "high" as const },
+          { category: "Location Data", severity: "medium" as const },
+          { category: "Interest Graph", severity: "medium" as const }
         ],
         facebook: [
-          "Had a great time at the tech meetup yesterday. Met some amazing people!",
-          "Just realized how much data we share online everyday. Time for a digital detox?",
-          "Happy to announce I've started a new project on digital privacy awareness!",
-          "Family day at the beach. Perfect weather! ☀️",
-          "Just upgraded my home office setup. Productivity level over 9000!"
+          { category: "Personal Relationships", severity: "high" as const },
+          { category: "Life Events", severity: "medium" as const },
+          { category: "Political Views", severity: "high" as const }
         ],
         twitter: [
-          "The future of privacy in the digital age is concerning. We need better regulations. #DigitalRights",
-          "Just read an amazing article on data protection. Worth checking out! #Privacy",
-          "Hot take: Most people don't realize how much of their data is being collected daily.",
-          "New software update just dropped! Lots of cool features. #TechNews",
-          "Conference day! Ready to learn about the latest in cybersecurity. #InfoSec"
+          { category: "Opinions & Beliefs", severity: "medium" as const },
+          { category: "Social Network", severity: "low" as const },
+          { category: "Behavioral Patterns", severity: "medium" as const }
         ],
         reddit: [
-          "Has anyone else noticed increased tracking after the latest app update?",
-          "Just did a complete data audit of my online presence. Here's what I found...",
-          "Question: What's the best privacy-focused alternative to Gmail?",
-          "TIL about a new method websites use to track users even with blockers enabled",
-          "Just created a guide for securing your digital footprint [LONG POST]"
+          { category: "Interests & Hobbies", severity: "medium" as const },
+          { category: "Pseudonymous Profile", severity: "low" as const },
+          { category: "Comment History", severity: "high" as const }
         ],
         linkedin: [
-          "Excited to announce I'll be speaking at the upcoming Digital Privacy Summit!",
-          "Just published a new article on balancing convenience and privacy in the digital age.",
-          "Looking for recommendations on books about data protection for non-technical readers.",
-          "Great discussion today about the ethics of data collection in modern businesses.",
-          "Proud to share that our team just launched a new privacy-first feature!"
+          { category: "Professional History", severity: "medium" as const },
+          { category: "Education", severity: "low" as const },
+          { category: "Professional Network", severity: "medium" as const }
         ]
       };
       
-      const templates = contentTemplates[platform];
-      
-      return Array.from({ length: count }, (_, i) => {
-        const daysAgo = Math.floor(Math.random() * 60);
-        const timestamp = new Date(now);
-        timestamp.setDate(timestamp.getDate() - daysAgo);
-        
-        return {
-          type: contentTypes[Math.floor(Math.random() * contentTypes.length)],
-          content: templates[i % templates.length],
-          timestamp: timestamp.toISOString(),
-          url: `https://${platform}.com/${username}/post${i}`,
-          engagement: {
-            likes: Math.floor(Math.random() * 100),
-            comments: Math.floor(Math.random() * 20),
-            shares: Math.floor(Math.random() * 10)
-          }
-        };
-      });
+      return categories[platform as keyof typeof categories] || [
+        { category: "Online Activity", severity: "medium" as const },
+        { category: "Shared Content", severity: "medium" as const }
+      ];
     };
     
-    // Construct the simulated platform data
+    // Generate potential privacy concerns based on platform
+    const getPotentialConcernsForPlatform = (platform: Platform): Array<{issue: string, risk: "low" | "medium" | "high"}> => {
+      const concerns = {
+        instagram: [
+          { issue: "Location metadata in photos", risk: "high" as const },
+          { issue: "Facial recognition in tagged photos", risk: "medium" as const }
+        ],
+        facebook: [
+          { issue: "Extensive personal information sharing", risk: "high" as const },
+          { issue: "Third-party app access to profile", risk: "medium" as const }
+        ],
+        twitter: [
+          { issue: "Public conversation history", risk: "medium" as const },
+          { issue: "Metadata from tweets (device, location)", risk: "medium" as const }
+        ],
+        reddit: [
+          { issue: "Comment history reveals personal details", risk: "high" as const },
+          { issue: "Account activity patterns can be analyzed", risk: "medium" as const }
+        ],
+        linkedin: [
+          { issue: "Professional network is publicly visible", risk: "low" as const },
+          { issue: "Career history can reveal patterns", risk: "medium" as const }
+        ]
+      };
+      
+      return concerns[platform as keyof typeof concerns] || [
+        { issue: "Digital footprint across platforms", risk: "medium" as const }
+      ];
+    };
+    
+    // Build the response object
     return {
       platformId: platform,
       username,
       profileData: {
-        displayName: this.formatDisplayName(username, platform),
-        bio: getBio(),
-        followerCount: getFollowerCount(),
-        followingCount: Math.floor(getFollowerCount() * (0.3 + Math.random() * 0.7)),
+        displayName: formatDisplayName(username, platform),
+        bio: this.generateBioForPlatform(platform, username),
+        followerCount: followerBase[platform as keyof typeof followerBase] + rand(50, 500),
+        followingCount: followerBase[platform as keyof typeof followerBase] * 0.7 + rand(30, 200),
         joinDate: joinDate.toISOString(),
         profileUrl: `https://${platform}.com/${username}`,
         avatarUrl: `https://example.com/avatars/${platform}/${username}.jpg`,
-        location: Math.random() > 0.3 ? "San Francisco, CA" : undefined
+        location: rand(0, 10) > 3 ? "San Francisco, CA" : undefined
       },
-      activityData: getEngagementMetrics(),
-      contentData: generateContent(10),
+      activityData: {
+        totalPosts: 10 + rand(5, 100),
+        totalComments: 20 + rand(10, 200),
+        totalLikes: 50 + rand(20, 300),
+        totalShares: 5 + rand(1, 30),
+        postsPerDay: (0.5 + rand(1, 10) / 10),
+        mostActiveTime: ["Morning", "Afternoon", "Evening"][rand(0, 2)],
+        lastActive: new Date(Date.now() - rand(1, 14) * 24 * 60 * 60 * 1000).toISOString(),
+        topHashtags: generateHashtagsForPlatform(platform)
+      },
+      contentData: this.generateContentForPlatform(platform, username, 10),
       privacyMetrics: {
-        exposureScore: Math.floor(Math.random() * 60) + 20,
-        dataCategories: this.getDataCategoriesForPlatform(platform),
-        potentialConcerns: this.getPotentialConcernsForPlatform(platform),
+        exposureScore: 40 + rand(0, 50),
+        dataCategories: getDataCategoriesForPlatform(platform),
+        potentialConcerns: getPotentialConcernsForPlatform(platform),
         recommendedActions: [
           "Review privacy settings",
-          "Remove location data",
-          "Update old posts with personal information",
-          "Check third-party app permissions"
+          "Remove location data from posts",
+          "Check third-party app permissions",
+          platform === 'instagram' ? "Consider making your account private" : 
+          platform === 'facebook' ? "Review tagged photos and timeline posts" :
+          platform === 'linkedin' ? "Adjust profile visibility settings" :
+          platform === 'twitter' ? "Review tweet visibility settings" :
+          "Regularly delete old content"
+        ]
+      },
+      analysisResults: {
+        exposureScore: 40 + rand(0, 50),
+        topTopics: [
+          { topic: "Technology", percentage: 0.3 + rand(0, 20) / 100 },
+          { topic: "Privacy", percentage: 0.2 + rand(0, 15) / 100 },
+          { topic: platform === 'instagram' ? "Photography" : 
+                  platform === 'linkedin' ? "Professional Development" :
+                  platform === 'reddit' ? "Technology" :
+                  "Current Events", percentage: 0.15 + rand(0, 15) / 100 },
+          { topic: platform === 'twitter' ? "Politics" :
+                  platform === 'facebook' ? "Personal" :
+                  platform === 'instagram' ? "Lifestyle" :
+                  "General", percentage: 0.1 + rand(0, 10) / 100 }
+        ],
+        activityTimeline: Array.from({ length: 12 }, (_, i) => ({
+          period: `2023-${(i + 1).toString().padStart(2, '0')}`,
+          count: 5 + rand(0, 25)
+        })),
+        sentimentBreakdown: {
+          positive: 0.2 + rand(0, 30) / 100,
+          neutral: 0.4 + rand(0, 30) / 100,
+          negative: 0.1 + rand(0, 15) / 100
+        },
+        privacyConcerns: [
+          {
+            type: `${platform.charAt(0).toUpperCase() + platform.slice(1)} Privacy Concern`,
+            description: `Your ${platform} profile may reveal ${platform === 'linkedin' ? 'professional' : 
+                        platform === 'facebook' ? 'personal' : 'sensitive'} information`,
+            severity: ["low", "medium", "high"][rand(0, 2)] as "low" | "medium" | "high"
+          },
+          {
+            type: "Data Aggregation Risk",
+            description: "Your activity patterns could be analyzed to build a detailed profile",
+            severity: "medium"
+          }
         ]
       }
     };
   }
-
-  private formatDisplayName(username: string, platform: Platform): string {
-    // Format username to look like a realistic display name
-    const nameParts = username.split(/[._-]/);
+  
+  // Generate content specific to a platform
+  private generateContentForPlatform(platform: Exclude<Platform, 'all'>, username: string, count: number = 10): any[] {
+    const contentTypes: Array<"post" | "comment" | "like" | "share"> = ["post", "comment", "like", "share"];
+    const seed = username.length + platform.length;
+    const rand = (min: number, max: number) => Math.floor((seed % 10) / 10 * (max - min) + min);
     
-    if (nameParts.length > 1) {
-      // If username has separators, capitalize each part
-      return nameParts.map(part => 
-        part.charAt(0).toUpperCase() + part.slice(1)
-      ).join(' ');
-    } else {
-      // Otherwise use a simple capitalization
-      return username.charAt(0).toUpperCase() + username.slice(1);
-    }
-  }
-
-  private generateHashtagsForPlatform(platform: Platform): string[] {
-    // Platform-specific common hashtags
-    const hashtagSets = {
-      instagram: ["#tech", "#photography", "#travel", "#coding", "#lifestyle", "#food", "#fitness"],
-      facebook: ["#tbt", "#family", "#friends", "#vacation", "#weekend", "#happy", "#love"],
-      twitter: ["#technology", "#news", "#politics", "#thread", "#programming", "#privacy", "#cybersecurity"],
-      reddit: ["#AMA", "#TIL", "#ELI5", "#discussion", "#help", "#advice", "#update"],
-      linkedin: ["#career", "#networking", "#leadership", "#innovation", "#professional", "#business", "#technology"]
-    };
-    
-    const tags = hashtagSets[platform as keyof typeof hashtagSets] || ["#digital", "#online", "#social"];
-    
-    // Select 3-5 random hashtags
-    const count = Math.floor(Math.random() * 3) + 3;
-    const shuffled = [...tags].sort(() => 0.5 - Math.random());
-    
-    return shuffled.slice(0, count);
-  }
-
-  private getDataCategoriesForPlatform(platform: Platform): Array<{category: string, severity: "low" | "medium" | "high"}> {
-    // Platform-specific data categories that might be exposed
-    const baseCategoriesForPlatform = {
+    // Platform-specific content templates
+    const templates = {
       instagram: [
-        { category: "Photos", severity: "medium" as const },
-        { category: "Location Data", severity: "high" as const },
-        { category: "Personal Interests", severity: "low" as const }
+        "Check out this amazing view! #photography",
+        "New tech gadget day! So excited to try this out 🚀",
+        "Beautiful sunset from my window today",
+        "Just finished reading an interesting book on digital privacy",
+        "Coffee and coding - perfect morning ☕️"
       ],
       facebook: [
-        { category: "Personal Relationships", severity: "medium" as const },
-        { category: "Life Events", severity: "medium" as const },
-        { category: "Political Views", severity: "high" as const },
-        { category: "Location History", severity: "high" as const }
+        "Had a great time at the tech meetup yesterday",
+        "Just realized how much data we share online everyday",
+        "Starting a new project on digital privacy awareness!",
+        "Family day out - perfect weather!",
+        "Just upgraded my home office setup"
       ],
       twitter: [
-        { category: "Opinions", severity: "medium" as const },
-        { category: "Frequent Contacts", severity: "low" as const },
-        { category: "Real-time Location", severity: "high" as const }
+        "The future of privacy in the digital age is concerning. We need better regulations.",
+        "Just read an amazing article on data protection. Worth checking out!",
+        "Most people don't realize how much of their data is being collected daily.",
+        "New software update just dropped! Lots of cool features.",
+        "Conference day! Learning about the latest in cybersecurity."
       ],
       reddit: [
-        { category: "Anonymous Activity", severity: "low" as const },
-        { category: "Personal Interests", severity: "medium" as const },
-        { category: "Opinions", severity: "medium" as const }
+        "Has anyone else noticed increased tracking after the latest app update?",
+        "Just did a complete data audit of my online presence. Here's what I found...",
+        "What's the best privacy-focused alternative to Gmail?",
+        "TIL about a new method websites use to track users even with blockers enabled",
+        "Just created a guide for securing your digital footprint [LONG POST]"
       ],
       linkedin: [
-        { category: "Professional History", severity: "low" as const },
-        { category: "Education", severity: "low" as const },
-        { category: "Professional Network", severity: "low" as const }
+        "Excited to announce I'll be speaking at the upcoming Digital Privacy Summit!",
+        "Just published a new article on balancing convenience and privacy in the digital age.",
+        "Looking for recommendations on books about data protection for non-technical readers.",
+        "Great discussion today about the ethics of data collection in modern businesses.",
+        "Proud to share that our team just launched a new privacy-first feature!"
       ]
     };
     
-    // Get categories for this platform
-    const categories = baseCategoriesForPlatform[platform as keyof typeof baseCategoriesForPlatform] || [];
-    
-    // Add common categories with random selection
-    const commonCategories = [
-      { category: "Email Patterns", severity: "medium" as const },
-      { category: "Device Information", severity: "medium" as const },
-      { category: "Content Preferences", severity: "low" as const },
-      { category: "Login Locations", severity: "high" as const }
+    const platformTemplates = templates[platform as keyof typeof templates] || [
+      "Post about technology",
+      "Comment on digital privacy",
+      "Shared an article about security"
     ];
     
-    // Select some common categories randomly
-    const selectedCommon = commonCategories
-      .filter(() => Math.random() > 0.5)
-      .slice(0, 2);
-    
-    return [...categories, ...selectedCommon];
+    return Array.from({ length: count }, (_, i) => {
+      const daysAgo = rand(1, 90);
+      const timestamp = new Date();
+      timestamp.setDate(timestamp.getDate() - daysAgo);
+      
+      const contentType = contentTypes[rand(0, contentTypes.length - 1)];
+      const content = platformTemplates[i % platformTemplates.length];
+      
+      return {
+        type: contentType,
+        content,
+        timestamp: timestamp.toISOString(),
+        url: `https://${platform}.com/${username}/${contentType === 'post' ? 'p' : contentType}/${Math.floor(Math.random() * 10000000)}`,
+        engagement: {
+          likes: rand(0, 100),
+          comments: rand(0, 30),
+          shares: rand(0, 15)
+        },
+        sentiment: ["positive", "neutral", "negative"][rand(0, 2)] as "positive" | "neutral" | "negative",
+        topics: ["technology", "privacy", "digital", "security", "data"].slice(0, 1 + rand(0, 3))
+      };
+    });
   }
-
-  private getPotentialConcernsForPlatform(platform: Platform): Array<{issue: string, risk: "low" | "medium" | "high"}> {
-    // Platform-specific privacy concerns
-    const concernsForPlatform = {
+  
+  // Generate realistic bio for each platform
+  private generateBioForPlatform(platform: Platform, username: string): string {
+    const seed = username.length + platform.length;
+    const rand = (min: number, max: number) => Math.floor((seed % 10) / 10 * (max - min) + min);
+    
+    const bios = {
       instagram: [
-        { issue: "Location metadata in photos", risk: "high" as const },
-        { issue: "Facial recognition in tagged photos", risk: "medium" as const }
+        "📱 Digital explorer | 🌍 Tech enthusiast | 📷 Photography lover",
+        "Capturing moments & exploring tech 📸 • Privacy advocate • SF Bay Area",
+        "Software developer by day, photographer by night | Technology • Privacy • Design",
+        "Digital nomad with a passion for technology and privacy 🌐✨"
       ],
       facebook: [
-        { issue: "Extensive personal information sharing", risk: "high" as const },
-        { issue: "Third-party app access to profile", risk: "medium" as const }
+        "Living life one day at a time. Interests: technology, privacy, digital rights.",
+        "Tech professional passionate about digital well-being and online privacy.",
+        "Working in tech. Love photography, hiking, and discussing digital rights.",
+        "Family person, tech enthusiast, privacy advocate. Life is what you make it."
       ],
       twitter: [
-        { issue: "Public conversation history", risk: "medium" as const },
-        { issue: "Metadata from tweets (device, location)", risk: "medium" as const }
+        "Tweets about tech, digital rights, and programming. Opinions are my own.",
+        "Privacy advocate. Digital explorer. Occasional developer. RT ≠ endorsement.",
+        "Talking tech, privacy & the future of digital rights • Developer • Speaker",
+        "Exploring the intersection of technology, privacy and society • SF based"
       ],
       reddit: [
-        { issue: "Comment history reveals personal details", risk: "medium" as const },
-        { issue: "Account activity patterns can be analyzed", risk: "low" as const }
+        `Redditor since ${new Date().getFullYear() - rand(1, 5)}. Tech, privacy, and occasionally memes.`,
+        "Just here for the tech discussions and privacy advice.",
+        "Long-time lurker, occasional poster. Interested in technology, privacy, and cybersecurity.",
+        "Software developer with interests in privacy tech, cybersecurity, and gaming."
       ],
       linkedin: [
-        { issue: "Professional network is publicly visible", risk: "low" as const },
-        { issue: "Career history timeline exposed", risk: "low" as const }
+        "Digital Technology Professional | Privacy Advocate | Software Engineer",
+        "Technology Leader passionate about responsible innovation and data privacy",
+        "Helping organizations navigate digital transformation with privacy by design",
+        "Software Engineer specialized in secure applications and privacy technologies"
       ]
     };
     
-    // Get concerns for this platform
-    const platformConcerns = concernsForPlatform[platform as keyof typeof concernsForPlatform] || [];
-    
-    // Add common concerns with random selection
-    const commonConcerns = [
-      { issue: "Account potentially linked to other platforms", risk: "medium" as const },
-      { issue: "Email and contact info may be exposed", risk: "medium" as const },
-      { issue: "Activity patterns reveal daily routine", risk: "medium" as const },
-      { issue: "Old content may contain outdated personal details", risk: "high" as const }
+    const platformBios = bios[platform as keyof typeof bios] || [
+      "Digital citizen interested in technology and privacy",
+      "Technology professional with focus on digital rights"
     ];
     
-    // Select some common concerns randomly
-    const selectedCommon = commonConcerns
-      .filter(() => Math.random() > 0.6)
-      .slice(0, 2);
-    
-    return [...platformConcerns, ...selectedCommon];
+    return platformBios[rand(0, platformBios.length - 1)];
   }
 }
 
-// Export singleton instance
 export const apiIntegration = new ApiIntegrationService();
