@@ -116,28 +116,140 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
     }
   }
   
-  console.log("All platform data:", data.platformData.map(p => p.platformId));
-  console.log("Found Reddit data:", redditData);
-  
   // Use Reddit data if available, otherwise use first platform or generate fallback data
   const platformToUse = redditData || data.platformData[0];
   
-  console.log("Using platform data:", platformToUse?.platformId);
-  console.log("Platform activity timeline:", platformToUse?.analysisResults?.activityTimeline);
-  console.log("Platform topics:", platformToUse?.analysisResults?.topTopics);
+  // Parse Reddit-specific stats
+  let redditSpecificStats = {
+    accountAge: "",
+    karmaPerYear: 0,
+    topSubreddits: [] as string[],
+    postToCommentRatio: 0,
+    accountCreated: "",
+    commentKarma: 0,
+    postKarma: 0,
+  };
+
+  if (redditData) {
+    // Convert joinDate to a more human-readable format and calculate account age
+    const joinDate = new Date(redditData.profileData?.joinDate || "");
+    const now = new Date();
+    const yearDiff = now.getFullYear() - joinDate.getFullYear();
+    
+    redditSpecificStats.accountAge = yearDiff === 1 
+      ? "1 year" 
+      : `${yearDiff} years`;
+    
+    redditSpecificStats.accountCreated = joinDate.toLocaleDateString(undefined, { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+    
+    // Calculate karma per year
+    const totalKarma = (redditData.activityData?.totalPosts || 0) + (redditData.activityData?.totalComments || 0);
+    redditSpecificStats.karmaPerYear = Math.round(totalKarma / Math.max(yearDiff, 1));
+    
+    // Get top subreddits
+    redditSpecificStats.topSubreddits = redditData.activityData?.topSubreddits || [];
+    
+    // Post to comment ratio
+    const posts = redditData.activityData?.totalPosts || 0;
+    const comments = redditData.activityData?.totalComments || 0;
+    redditSpecificStats.postToCommentRatio = comments > 0 ? Math.round((posts / comments) * 10) / 10 : 0;
+    
+    // Store karma values
+    redditSpecificStats.commentKarma = redditData.activityData?.totalComments || 0;
+    redditSpecificStats.postKarma = redditData.activityData?.totalPosts || 0;
+  }
   
-  // We can't check Reddit credentials on the client side
-  // These are only available on the server
-  
+  // Format timeline data
   const timelineData = platformToUse?.analysisResults?.activityTimeline?.map(item => ({
     name: item.period,
     value: item.count
   })) || generateTimelineData();
   
+  // Format topic data
   const topicData = platformToUse?.analysisResults?.topTopics?.map(item => ({
     name: item.topic,
     value: item.percentage
   })) || generateTopicData();
+
+  // Generate Reddit-specific insights if Reddit data is available
+  let redditInsights: {insight: string, type: "info" | "warning"}[] = [];
+  let redditRecommendations: string[] = [];
+  
+  if (redditData) {
+    // Add insights based on Reddit account age
+    if (redditSpecificStats.accountAge.includes("1 year") || 
+        (redditSpecificStats.accountAge.includes("years") && parseInt(redditSpecificStats.accountAge) <= 2)) {
+      redditInsights.push({
+        insight: "Relatively new Reddit account (less than 2 years old) may have limited historical data.",
+        type: "info"
+      });
+    } else if (redditSpecificStats.accountAge.includes("years") && parseInt(redditSpecificStats.accountAge) >= 7) {
+      redditInsights.push({
+        insight: "Long-term Reddit account (over 7 years) has a substantial digital history that may contain forgotten content.",
+        type: "warning"
+      });
+      redditRecommendations.push("Review historical posts from the early years of your Reddit account to identify outdated personal information.");
+    }
+    
+    // Add insights based on karma and activity level
+    if (redditSpecificStats.karmaPerYear > 5000) {
+      redditInsights.push({
+        insight: "Very high Reddit activity level suggests significant digital exposure.",
+        type: "warning"
+      });
+      redditRecommendations.push("Consider using Reddit's bulk edit tools to review and clean up your extensive post history.");
+    } else if (redditSpecificStats.karmaPerYear < 100) {
+      redditInsights.push({
+        insight: "Low Reddit activity level indicates minimal digital exposure on this platform.",
+        type: "info"
+      });
+    }
+    
+    // Add insights based on post/comment ratio
+    if (redditSpecificStats.postToCommentRatio > 3) {
+      redditInsights.push({
+        insight: "Primarily creates new content rather than commenting, increasing visibility.",
+        type: "warning"
+      });
+      redditRecommendations.push("Review your submissions to ensure no personally identifiable information is exposed in your posts.");
+    } else if (redditSpecificStats.postToCommentRatio < 0.2) {
+      redditInsights.push({
+        insight: "Mostly comments on others' content rather than creating new posts.",
+        type: "info"
+      });
+      redditRecommendations.push("Check your comment history for personal details that may have been shared in discussions.");
+    }
+    
+    // Add insights based on number of subreddits
+    if (redditSpecificStats.topSubreddits.length > 10) {
+      redditInsights.push({
+        insight: "Active in many different subreddits, creating a diverse digital footprint.",
+        type: "warning"
+      });
+      redditRecommendations.push("Review posts across different subreddits to ensure consistency in privacy practices.");
+    } else if (redditSpecificStats.topSubreddits.length <= 3 && redditSpecificStats.topSubreddits.length > 0) {
+      redditInsights.push({
+        insight: "Activity concentrated in just a few subreddits, limiting digital footprint scope.",
+        type: "info"
+      });
+    }
+    
+    // Additional Reddit-specific privacy concerns
+    if (redditData.profileData?.bio) {
+      redditInsights.push({
+        insight: "Your Reddit profile contains a public bio that may reveal personal information.",
+        type: "warning"
+      });
+      redditRecommendations.push("Review your Reddit bio for personal information that could be removed.");
+    }
+    
+    // Add recommendation about Reddit's archiving policies
+    redditRecommendations.push("Be aware that Reddit content is frequently archived by third-party services even after deletion.");
+  }
 
   return (
     <>
@@ -199,7 +311,8 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
               Based on the analysis of <span className="font-medium">{data.username}</span>'s public digital footprint across {data.platforms.join(", ")}, we've generated the following insights:
             </p>
             <ul className="space-y-2 text-gray-700">
-              {data.summary.topInsights.map((insight, index) => (
+              {/* Combine general insights with platform-specific insights */}
+              {[...data.summary.topInsights, ...redditInsights].map((insight, index) => (
                 <li key={index} className="flex items-start">
                   <span className={`mr-2 mt-0.5 ${insight.type === 'warning' ? 'text-warning' : 'text-primary'}`}>
                     <svg 
@@ -234,6 +347,105 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
         </Card>
       </div>
       
+      {redditData && (
+        <div className="mb-8">
+          <h3 className="text-lg font-medium mb-4">Reddit Account Details</h3>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="border rounded-lg p-4">
+                  <h4 className="text-sm font-medium text-gray-500 mb-1">Account Age</h4>
+                  <p className="text-xl font-semibold">{redditSpecificStats.accountAge}</p>
+                  <p className="text-sm text-gray-500 mt-1">Created on {redditSpecificStats.accountCreated}</p>
+                </div>
+
+                <div className="border rounded-lg p-4">
+                  <h4 className="text-sm font-medium text-gray-500 mb-1">Total Karma</h4>
+                  <p className="text-xl font-semibold">{redditSpecificStats.postKarma + redditSpecificStats.commentKarma}</p>
+                  <div className="flex text-sm text-gray-500 mt-1 justify-between">
+                    <span>Post: {redditSpecificStats.postKarma}</span>
+                    <span>Comment: {redditSpecificStats.commentKarma}</span>
+                  </div>
+                </div>
+
+                <div className="border rounded-lg p-4">
+                  <h4 className="text-sm font-medium text-gray-500 mb-1">Karma Per Year</h4>
+                  <p className="text-xl font-semibold">{redditSpecificStats.karmaPerYear}</p>
+                  <p className="text-sm text-gray-500 mt-1">Activity level: {
+                    redditSpecificStats.karmaPerYear > 5000 
+                      ? "Very High" 
+                      : redditSpecificStats.karmaPerYear > 1000 
+                        ? "High" 
+                        : redditSpecificStats.karmaPerYear > 200 
+                          ? "Moderate" 
+                          : "Low"
+                  }</p>
+                </div>
+                
+                <div className="border rounded-lg p-4">
+                  <h4 className="text-sm font-medium text-gray-500 mb-1">Post/Comment Ratio</h4>
+                  <p className="text-xl font-semibold">{redditSpecificStats.postToCommentRatio}:1</p>
+                  <p className="text-sm text-gray-500 mt-1">{
+                    redditSpecificStats.postToCommentRatio > 2 
+                      ? "Primarily a content creator" 
+                      : redditSpecificStats.postToCommentRatio > 0.5 
+                        ? "Balanced creator/commenter" 
+                        : "Primarily a commenter"
+                  }</p>
+                </div>
+                
+                <div className="border rounded-lg p-4 md:col-span-2">
+                  <h4 className="text-sm font-medium text-gray-500 mb-1">Top Subreddits</h4>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {redditSpecificStats.topSubreddits.length > 0 ? (
+                      redditSpecificStats.topSubreddits.map((subreddit, index) => (
+                        <span 
+                          key={index} 
+                          className="inline-block bg-gray-100 rounded-full px-3 py-1 text-sm font-medium text-gray-700"
+                        >
+                          r/{subreddit}
+                        </span>
+                      ))
+                    ) : (
+                      <p className="text-gray-500">No subreddit data available</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              {redditRecommendations.length > 0 && (
+                <div className="mt-6 border-t pt-6">
+                  <h4 className="text-base font-medium text-gray-900 mb-3">Reddit-Specific Recommendations</h4>
+                  <ul className="space-y-2">
+                    {redditRecommendations.map((recommendation, index) => (
+                      <li key={index} className="flex items-start">
+                        <span className="mr-2 text-primary">
+                          <svg 
+                            xmlns="http://www.w3.org/2000/svg" 
+                            width="18" 
+                            height="18" 
+                            viewBox="0 0 24 24" 
+                            fill="none" 
+                            stroke="currentColor" 
+                            strokeWidth="2" 
+                            strokeLinecap="round" 
+                            strokeLinejoin="round"
+                          >
+                            <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
+                            <path d="m9 12 2 2 4-4"/>
+                          </svg>
+                        </span>
+                        <span className="text-gray-700">{recommendation}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <div>
           <h3 className="text-lg font-medium mb-4">Activity Timeline</h3>
