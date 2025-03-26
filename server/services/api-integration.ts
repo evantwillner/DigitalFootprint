@@ -28,7 +28,7 @@ interface ApiCredentials {
 
 class ApiIntegrationService {
   private credentials: ApiCredentials = {};
-  private apiConfigs: Partial<Record<Platform, ApiConfig>> = {
+  private apiConfigs: Record<Exclude<Platform, 'all' | 'tiktok' | 'youtube' | 'pinterest' | 'snapchat' | 'github' | 'medium'>, ApiConfig> = {
     instagram: {
       baseUrl: 'https://graph.instagram.com/v18.0',
       endpoints: {
@@ -90,11 +90,12 @@ class ApiIntegrationService {
   }
   
   private loadCredentials() {
-    // In production, we would load these from environment variables
-    const platforms: Platform[] = ['instagram', 'facebook', 'reddit', 'twitter', 'linkedin'];
+    // We only support these platforms currently
+    const supportedPlatforms = ['instagram', 'facebook', 'reddit', 'twitter', 'linkedin'] as const;
+    type SupportedPlatform = typeof supportedPlatforms[number];
     
     // Check if any platform-specific API keys are available in environment
-    platforms.forEach(platform => {
+    supportedPlatforms.forEach(platform => {
       const keyName = `${platform.toUpperCase()}_API_KEY`;
       const secretName = `${platform.toUpperCase()}_API_SECRET`;
       const tokenName = `${platform.toUpperCase()}_ACCESS_TOKEN`;
@@ -115,7 +116,7 @@ class ApiIntegrationService {
     });
     
     // Log which platforms have credentials (for debugging)
-    const platformsWithCredentials = platforms.filter(p => 
+    const platformsWithCredentials = supportedPlatforms.filter(p => 
       this.credentials[p]?.apiKey || this.credentials[p]?.accessToken
     );
     
@@ -132,6 +133,14 @@ class ApiIntegrationService {
     console.log(`API Integration Service: Fetching data for ${username} on ${platform}`);
     
     try {
+      // First check if this is a platform we currently support
+      const supportedPlatforms = ['instagram', 'facebook', 'reddit', 'twitter', 'linkedin'] as const;
+      
+      if (!supportedPlatforms.includes(platform as any)) {
+        console.log(`Platform ${platform} is not currently supported`);
+        return null;
+      }
+      
       // Check if we have credentials for this platform
       if (this.credentials[platform]?.apiKey || this.credentials[platform]?.accessToken) {
         // In production, we would make actual API calls here
@@ -154,7 +163,7 @@ class ApiIntegrationService {
    * This would be used in production with proper API credentials
    */
   private async makeApiRequest(
-    platform: Exclude<Platform, 'all'>,
+    platform: Exclude<Platform, 'all' | 'tiktok' | 'youtube' | 'pinterest' | 'snapchat' | 'github' | 'medium'>,
     endpoint: string,
     params: Record<string, string> = {}
   ): Promise<any> {

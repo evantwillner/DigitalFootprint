@@ -16,9 +16,10 @@ class PlatformApiService {
   }
   
   private loadApiKeys() {
-    const platforms: Platform[] = ["instagram", "facebook", "reddit", "twitter", "linkedin"];
+    const supportedPlatforms = ['instagram', 'facebook', 'reddit', 'twitter', 'linkedin'] as const;
+    type SupportedPlatform = typeof supportedPlatforms[number];
     
-    platforms.forEach(platform => {
+    supportedPlatforms.forEach(platform => {
       const keyName = `${platform.toUpperCase()}_API_KEY`;
       if (process.env[keyName]) {
         this.apiKeys[platform] = process.env[keyName]!;
@@ -39,6 +40,14 @@ class PlatformApiService {
     console.log(`Fetching data for ${username} on ${platform}`);
     
     try {
+      // First check if this is a platform we currently support
+      const supportedPlatforms = ['instagram', 'facebook', 'reddit', 'twitter', 'linkedin'] as const;
+      
+      if (!supportedPlatforms.includes(platform as any)) {
+        console.log(`Platform ${platform} is not currently supported`);
+        return null;
+      }
+      
       // Check if we have access to the platform API
       if (this.apiKeys[platform]) {
         // In a production app, this would make the actual API call
