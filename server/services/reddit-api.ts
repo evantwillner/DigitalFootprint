@@ -260,7 +260,7 @@ export class RedditApiService {
       // Check if we found a user
       if (!userData || !userData.data) {
         log(`Reddit user ${username} not found or returned empty data`, 'reddit-api');
-        return this.mockPlatformResponse(username); // Fall back to mock data if user not found
+        return null; // Return null when user is not found
       }
       
       // Get user's recent posts
@@ -279,7 +279,7 @@ export class RedditApiService {
       // Handle 404 - User not found
       if (error.response && error.response.status === 404) {
         log(`Reddit user ${username} not found`, 'reddit-api');
-        return this.mockPlatformResponse(username); // Fall back to mock data if user not found
+        return null; // Return null when user not found
       }
       
       log(`Error fetching Reddit data: ${error.message}`, 'reddit-api');

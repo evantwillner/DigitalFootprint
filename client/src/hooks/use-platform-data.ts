@@ -225,6 +225,8 @@ export default function usePlatformData(): UsePlatformDataResult {
             console.log("usePlatformData: Analysis results:", parsedData.platformData[0].analysisResults);
           } else {
             console.warn("usePlatformData: No platform data found in results");
+            // Add a message to the data object to explain that no data was found
+            parsedData.noDataMessage = "No data found for this username. The user may not exist or has no public data available.";
           }
           
           setData(parsedData);
