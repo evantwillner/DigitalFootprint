@@ -236,8 +236,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get status of connected platform APIs
   apiRouter.get("/platform-api-status", requireAuth, async (_req: Request, res: Response) => {
     try {
-      // Lazy-load the Twitter API to avoid circular dependencies
+      // Lazy-load the API services to avoid circular dependencies
       const { twitterApi } = await import('./services/twitter-api');
+      const { redditApi } = await import('./services/reddit-api');
       
       const status = {
         twitter: {
@@ -246,6 +247,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ? "Twitter API is properly configured" 
             : "Twitter API requires credentials. Data will be simulated."
         },
+        reddit: redditApi.getApiStatus(),
         // Add other platforms as they're implemented
         facebook: {
           configured: false,
