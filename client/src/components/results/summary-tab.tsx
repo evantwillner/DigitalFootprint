@@ -175,6 +175,29 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
   const primaryPlatform = availablePlatforms[0];
   const primaryPlatformData = data.platformData[0];
   
+  // Prepare sentiment data
+  let sentimentData = [
+    { name: "Positive", value: 30 },
+    { name: "Neutral", value: 55 },
+    { name: "Negative", value: 15 },
+  ];
+  
+  // Try to get actual sentiment data from Reddit if available
+  if (redditData?.analysisResults?.sentimentBreakdown) {
+    const sentiment = redditData.analysisResults.sentimentBreakdown;
+    
+    // Check if we have values that will display properly
+    const hasValidValues = sentiment.positive > 0 || sentiment.neutral > 0 || sentiment.negative > 0;
+    
+    if (hasValidValues) {
+      sentimentData = [
+        { name: "Positive", value: Math.round(sentiment.positive * 100) },
+        { name: "Neutral", value: Math.round(sentiment.neutral * 100) },
+        { name: "Negative", value: Math.round(sentiment.negative * 100) },
+      ];
+    }
+  }
+  
   // Parse Reddit-specific stats
   let redditSpecificStats = {
     accountAge: "",

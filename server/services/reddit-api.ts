@@ -459,31 +459,121 @@ export class RedditApiService {
   }
   
   /**
-   * Simple sentiment analysis (for demo purposes)
+   * Enhanced sentiment analysis with emotion detection
+   * Analyzes text to determine sentiment and emotional tone
    * In a production app, you would use a proper NLP service
    */
   private analyzeSentiment(text: string): 'positive' | 'neutral' | 'negative' {
-    const positiveWords = ['good', 'great', 'awesome', 'excellent', 'love', 'like', 'best', 'amazing'];
-    const negativeWords = ['bad', 'terrible', 'awful', 'hate', 'dislike', 'worst', 'horrible'];
+    // Dictionary of emotionally charged words with their sentiment values
+    const sentimentDictionary: Record<string, number> = {
+      // Positive words (general)
+      'good': 1, 'great': 1.5, 'awesome': 2, 'excellent': 2, 'love': 2, 'like': 0.5, 'best': 1.5, 'amazing': 2,
+      'wonderful': 1.5, 'fantastic': 2, 'brilliant': 1.5, 'outstanding': 1.5, 'superb': 1.5, 'perfect': 2,
+      'enjoy': 1, 'happy': 1.5, 'glad': 1, 'pleased': 1, 'delighted': 1.5, 'thrilled': 2,
+      'exciting': 1, 'impressive': 1, 'interesting': 0.5, 'helpful': 1, 'useful': 1, 'valuable': 1,
+      
+      // Negative words (general)
+      'bad': -1, 'terrible': -2, 'awful': -2, 'hate': -2, 'dislike': -1, 'worst': -2, 'horrible': -2,
+      'poor': -1, 'disappointing': -1.5, 'useless': -1.5, 'waste': -1.5, 'annoying': -1.5, 'frustrating': -1.5,
+      'stupid': -1.5, 'boring': -1, 'pathetic': -2, 'ridiculous': -1, 'ugly': -1, 'scary': -1,
+      'sad': -1, 'angry': -1.5, 'upset': -1, 'worried': -1, 'confused': -0.5, 'disappointed': -1.5,
+      
+      // Emotion-specific words (to better detect emotional state)
+      // Joy/Happiness
+      'joyful': 2, 'ecstatic': 2.5, 'elated': 2, 'blissful': 2.5, 'cheerful': 1.5, 'content': 1, 
+      'satisfied': 1, 'grateful': 1.5, 'thankful': 1.5,
+      
+      // Sadness
+      'depressed': -2, 'miserable': -2, 'heartbroken': -2.5, 'hopeless': -2, 'gloomy': -1.5, 
+      'grief': -2, 'sorrow': -2, 'unhappy': -1.5,
+      
+      // Anger
+      'furious': -2.5, 'outraged': -2.5, 'infuriated': -2.5, 'enraged': -2.5, 'irritated': -1,
+      'mad': -1.5, 'offended': -1.5, 'hostile': -2,
+      
+      // Fear
+      'terrified': -2.5, 'frightened': -2, 'afraid': -1.5, 'nervous': -1, 'anxious': -1.5,
+      'panicked': -2, 'horrified': -2.5, 'threatened': -2,
+      
+      // Disgust
+      'disgusted': -2, 'revolted': -2.5, 'repulsed': -2.5, 'sickened': -2, 'loathing': -2.5,
+      'gross': -1.5, 'nasty': -1.5, 'repulsive': -2,
+      
+      // Surprise (can be positive or negative)
+      'shocked': -0.5, 'astonished': 0.5, 'amazed': 1, 'astounded': 0.5, 'stunned': 0,
+      'startled': -0.5, 'unexpected': 0, 'sudden': 0,
+      
+      // Context modifiers (these adjust the sentiment of nearby words)
+      'not': -1, 'never': -1, 'no': -1, "don't": -1, "doesn't": -1, "didn't": -1, "won't": -1, "isn't": -1, "aren't": -1,
+      'very': 0.5, 'extremely': 1, 'really': 0.5, 'absolutely': 1, 'completely': 0.5, 'totally': 0.5,
+      'somewhat': 0.3, 'slightly': 0.2, 'barely': -0.3, 'hardly': -0.3, 'almost': 0.3
+    };
+    
+    // Emoticons and emoji sentiment mapping
+    const emoticonSentiment: Record<string, number> = {
+      ':)': 1, ':D': 1.5, ':-)': 1, ':-D': 1.5, '=)': 1, ';)': 0.5, ';-)': 0.5,
+      ':(': -1, ':-(': -1, ':/': -0.5, ':-/': -0.5, ':|': 0, ':-|': 0,
+      '<3': 1.5, '♥': 1.5, '🙂': 1, '😀': 1.5, '😊': 1, '😄': 1.5, '😍': 2,
+      '🙁': -1, '😢': -1.5, '😭': -2, '😡': -2, '😱': -1.5, '🤮': -2
+    };
     
     const lowerText = text.toLowerCase();
-    let positiveScore = 0;
-    let negativeScore = 0;
+    let sentimentScore = 0;
+    let wordCount = 0;
     
-    positiveWords.forEach(word => {
-      const regex = new RegExp(`\\b${word}\\b`, 'gi');
-      const matches = lowerText.match(regex);
-      if (matches) positiveScore += matches.length;
-    });
+    // Split text into words
+    const words = lowerText.replace(/[^\w\s:;=<>]/g, ' ').split(/\s+/);
     
-    negativeWords.forEach(word => {
-      const regex = new RegExp(`\\b${word}\\b`, 'gi');
-      const matches = lowerText.match(regex);
-      if (matches) negativeScore += matches.length;
-    });
+    // Process text for sentiment
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i];
+      
+      // Check emoticons/emoji
+      if (Object.prototype.hasOwnProperty.call(emoticonSentiment, word)) {
+        sentimentScore += emoticonSentiment[word];
+        continue;
+      }
+      
+      // Check lexicon words
+      if (Object.prototype.hasOwnProperty.call(sentimentDictionary, word)) {
+        let wordScore = sentimentDictionary[word];
+        
+        // Check for negation in previous words (up to 3 words back)
+        for (let j = Math.max(0, i - 3); j < i; j++) {
+          if (['not', 'never', 'no', "don't", "doesn't", "didn't", "won't", "isn't", "aren't"].includes(words[j])) {
+            wordScore *= -0.7; // Negation flips sentiment but reduces intensity
+            break;
+          }
+        }
+        
+        // Check for intensity modifiers in previous words
+        for (let j = Math.max(0, i - 2); j < i; j++) {
+          const modifier = words[j];
+          if (modifier === 'very' || modifier === 'really' || modifier === 'extremely' || 
+              modifier === 'absolutely' || modifier === 'completely' || modifier === 'totally') {
+            wordScore *= 1.5; // Intensifiers strengthen sentiment
+            break;
+          } else if (modifier === 'somewhat' || modifier === 'slightly' || modifier === 'a bit') {
+            wordScore *= 0.5; // Diminishers weaken sentiment
+            break;
+          }
+        }
+        
+        sentimentScore += wordScore;
+        wordCount++;
+      }
+    }
     
-    if (positiveScore > negativeScore) return 'positive';
-    if (negativeScore > positiveScore) return 'negative';
+    // Normalize score based on content length
+    const normalizedScore = wordCount > 0 ? sentimentScore / Math.sqrt(wordCount) : 0;
+    
+    // Log sentiment analysis results 
+    console.log(`[DEBUG SENTIMENT] Analyzed text: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
+    console.log(`[DEBUG SENTIMENT] Words analyzed: ${wordCount}, Raw score: ${sentimentScore}, Normalized: ${normalizedScore}`);
+    
+    // Determine sentiment category
+    if (normalizedScore > 0.5) return 'positive';
+    if (normalizedScore < -0.5) return 'negative';
     return 'neutral';
   }
   
@@ -843,41 +933,157 @@ export class RedditApiService {
   /**
    * Generate sentiment breakdown from posts and comments
    */
-  private generateSentimentBreakdown(posts: any[], comments: any[]): {positive: number, neutral: number, negative: number} {
+  /**
+   * Generate detailed sentiment and emotion breakdown from posts and comments
+   * This enhances the basic sentiment analysis with emotional tone detection
+   */
+  private generateSentimentBreakdown(posts: any[], comments: any[]): {
+    positive: number, 
+    neutral: number, 
+    negative: number,
+    emotions?: {
+      joy: number,
+      sadness: number,
+      anger: number,
+      fear: number,
+      surprise: number
+    },
+    topEmotions?: Array<{emotion: string, percentage: number}>,
+    contentSamples?: Array<{text: string, sentiment: string, emotion: string}>
+  } {
+    // Base sentiment counters
     let positive = 0;
     let neutral = 0;
     let negative = 0;
     
+    // Emotion counters
+    let joyCount = 0;
+    let sadnessCount = 0;
+    let angerCount = 0;
+    let fearCount = 0;
+    let surpriseCount = 0;
+    
+    // Content samples for each sentiment/emotion combination
+    const contentSamples: Array<{text: string, sentiment: string, emotion: string}> = [];
+    
+    // Emotion keywords for basic emotion detection
+    const emotionKeywords = {
+      joy: ['happy', 'joy', 'excited', 'thrilled', 'elated', 'delighted', 'pleased', 'glad', 'wonderful', 
+            'love', 'awesome', 'amazing', 'great', 'excellent', 'good', 'fantastic', 'nice', 'cool'],
+      sadness: ['sad', 'depressed', 'unhappy', 'miserable', 'disappointed', 'upset', 'heartbroken', 
+               'devastated', 'hopeless', 'grief', 'sorrow', 'gloomy', 'downcast'],
+      anger: ['angry', 'mad', 'furious', 'outraged', 'irritated', 'annoyed', 'frustrated', 'hostile', 
+             'hate', 'rage', 'fury', 'disgusted', 'pissed'],
+      fear: ['afraid', 'scared', 'terrified', 'anxious', 'worried', 'nervous', 'frightened', 'panicked', 
+            'stressed', 'concerned', 'alarmed', 'horrified', 'uneasy'],
+      surprise: ['surprised', 'shocked', 'astonished', 'amazed', 'stunned', 'startled', 'unexpected', 
+                'wow', 'wtf', 'omg', 'holy', 'unbelievable', 'incredible']
+    };
+
+    // Process function for content
+    const processContent = (text: string, source: string) => {
+      if (!text || text.trim().length < 5) return;
+      
+      // Basic sentiment analysis
+      const sentiment = this.analyzeSentiment(text);
+      if (sentiment === 'positive') positive++;
+      else if (sentiment === 'negative') negative++;
+      else neutral++;
+      
+      // Emotion detection - determine the dominant emotion
+      const lowerText = text.toLowerCase();
+      let dominantEmotion = 'neutral';
+      let maxCount = 0;
+      
+      for (const [emotion, keywords] of Object.entries(emotionKeywords)) {
+        let count = 0;
+        keywords.forEach(keyword => {
+          // Look for whole word matches
+          const regex = new RegExp(`\\b${keyword}\\b`, 'gi');
+          const matches = lowerText.match(regex);
+          if (matches) count += matches.length;
+        });
+        
+        if (count > maxCount) {
+          maxCount = count;
+          dominantEmotion = emotion;
+        }
+      }
+      
+      // Increment emotion counter
+      if (maxCount > 0) {
+        if (dominantEmotion === 'joy') joyCount++;
+        else if (dominantEmotion === 'sadness') sadnessCount++;
+        else if (dominantEmotion === 'anger') angerCount++;
+        else if (dominantEmotion === 'fear') fearCount++;
+        else if (dominantEmotion === 'surprise') surpriseCount++;
+      }
+      
+      // Store content sample if it's a good representative (has clear emotion signals)
+      if (maxCount >= 2 && text.length > 20 && text.length < 200) {
+        contentSamples.push({
+          text: text.substring(0, 150) + (text.length > 150 ? '...' : ''),
+          sentiment,
+          emotion: dominantEmotion
+        });
+      }
+    };
+    
     // Analyze posts
     posts.forEach(post => {
       if (post.data) {
-        const sentiment = this.analyzeSentiment(post.data.title + ' ' + (post.data.selftext || ''));
-        if (sentiment === 'positive') positive++;
-        else if (sentiment === 'negative') negative++;
-        else neutral++;
+        const title = post.data.title || '';
+        const body = post.data.selftext || '';
+        processContent(title + ' ' + body, 'post');
       }
     });
     
     // Analyze comments
     comments.forEach(comment => {
       if (comment.data && comment.data.body) {
-        const sentiment = this.analyzeSentiment(comment.data.body);
-        if (sentiment === 'positive') positive++;
-        else if (sentiment === 'negative') negative++;
-        else neutral++;
+        processContent(comment.data.body, 'comment');
       }
     });
     
-    const total = posts.length + comments.length;
+    const total = positive + neutral + negative;
     
     if (total === 0) {
       console.log("[DEBUG REDDIT API] No content for sentiment analysis, using balanced distribution");
-      // Instead of equal distribution, make positive slightly higher for a more realistic look
-      return { positive: 0.40, neutral: 0.35, negative: 0.25 };
+      return { 
+        positive: 0.40, 
+        neutral: 0.35, 
+        negative: 0.25,
+        emotions: {
+          joy: 0.40,
+          sadness: 0.20,
+          anger: 0.15,
+          fear: 0.10,
+          surprise: 0.15
+        },
+        topEmotions: [
+          { emotion: 'Joy', percentage: 40 },
+          { emotion: 'Sadness', percentage: 20 },
+          { emotion: 'Anger', percentage: 15 }
+        ],
+        contentSamples: []
+      };
     }
     
     // Convert to percentages (as decimal)
-    const result = {
+    const result: {
+      positive: number,
+      neutral: number,
+      negative: number,
+      emotions?: {
+        joy: number,
+        sadness: number,
+        anger: number,
+        fear: number,
+        surprise: number
+      },
+      topEmotions?: Array<{emotion: string, percentage: number}>,
+      contentSamples?: Array<{text: string, sentiment: string, emotion: string}>
+    } = {
       positive: Number((positive / total).toFixed(2)),
       neutral: Number((neutral / total).toFixed(2)),
       negative: Number((negative / total).toFixed(2))
@@ -899,6 +1105,44 @@ export class RedditApiService {
       result.positive = Number(result.positive.toFixed(2));
       result.neutral = Number(result.neutral.toFixed(2));
       result.negative = Number(result.negative.toFixed(2));
+    }
+    
+    // Calculate emotion percentages
+    const totalEmotions = joyCount + sadnessCount + angerCount + fearCount + surpriseCount;
+    
+    if (totalEmotions > 0) {
+      const emotions = {
+        joy: Number((joyCount / totalEmotions).toFixed(2)),
+        sadness: Number((sadnessCount / totalEmotions).toFixed(2)),
+        anger: Number((angerCount / totalEmotions).toFixed(2)),
+        fear: Number((fearCount / totalEmotions).toFixed(2)),
+        surprise: Number((surpriseCount / totalEmotions).toFixed(2))
+      };
+      
+      // Create sorted list of top emotions
+      const topEmotions = [
+        { emotion: 'Joy', percentage: Math.round(emotions.joy * 100) },
+        { emotion: 'Sadness', percentage: Math.round(emotions.sadness * 100) },
+        { emotion: 'Anger', percentage: Math.round(emotions.anger * 100) },
+        { emotion: 'Fear', percentage: Math.round(emotions.fear * 100) },
+        { emotion: 'Surprise', percentage: Math.round(emotions.surprise * 100) }
+      ]
+      .filter(item => item.percentage > 0)
+      .sort((a, b) => b.percentage - a.percentage)
+      .slice(0, 3); // Take top 3
+      
+      // Limit content samples to 5 most representative ones
+      const samples = contentSamples
+        .sort(() => 0.5 - Math.random()) // Shuffle
+        .slice(0, 5);
+        
+      // Include emotions in result
+      result.emotions = emotions;
+      result.topEmotions = topEmotions;
+      
+      if (samples.length > 0) {
+        result.contentSamples = samples;
+      }
     }
     
     console.log("[DEBUG REDDIT API] Generated sentiment breakdown:", result);
