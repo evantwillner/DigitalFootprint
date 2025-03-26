@@ -232,6 +232,7 @@ export const digitalFootprintResponseSchema = z.object({
     })),
     recommendations: z.array(z.string()),
   }),
+  noDataMessage: z.string().optional(),
 });
 
 export type DigitalFootprintResponse = z.infer<typeof digitalFootprintResponseSchema>;
