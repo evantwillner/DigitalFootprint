@@ -222,7 +222,16 @@ export class MemStorage implements IStorage {
       }
       
       // For specific platforms, use the API integration service
-      return await platformApi.fetchUserData(platform, username);
+      const result = await platformApi.fetchUserData(platform, username);
+      
+      // Log the result for debugging
+      if (result) {
+        console.log(`Successfully fetched data for ${username} on ${platform} (${result.platformId})`);
+      } else {
+        console.log(`No data returned for ${username} on ${platform}`);
+      }
+      
+      return result;
     } catch (error) {
       console.error(`Error fetching platform data for ${username} on ${platform}:`, error);
       return null;

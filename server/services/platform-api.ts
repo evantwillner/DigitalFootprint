@@ -64,8 +64,22 @@ class PlatformApiService {
         if (redditUsername.startsWith('u/')) {
           redditUsername = redditUsername.substring(2);
           log(`Removed 'u/' prefix from Reddit username: ${redditUsername}`, 'platform-api');
+        } else if (redditUsername.startsWith('/u/')) {
+          redditUsername = redditUsername.substring(3);
+          log(`Removed '/u/' prefix from Reddit username: ${redditUsername}`, 'platform-api');
         }
-        return await redditApi.fetchUserData(redditUsername);
+        
+        // Get data from the Reddit API
+        const redditData = await redditApi.fetchUserData(redditUsername);
+        
+        // Log what we received
+        if (redditData) {
+          log(`Received Reddit data for ${redditUsername} with platform ID: ${redditData.platformId}`, 'platform-api');
+        } else {
+          log(`No Reddit data returned for ${redditUsername}`, 'platform-api');
+        }
+        
+        return redditData;
       }
       
       // For other platforms, check if we have access to their API

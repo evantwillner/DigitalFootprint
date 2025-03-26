@@ -83,9 +83,11 @@ export default function SearchForm() {
     // Process username to handle platform-specific formats
     let username = values.username.trim();
     
-    // Handle Reddit-specific username format (u/username)
-    if (username.startsWith("u/") && (platforms.includes("reddit") || platforms.includes("all"))) {
-      username = username.substring(2); // Remove 'u/' prefix
+    // Handle Reddit-specific username format (u/username or /u/username)
+    if ((username.startsWith("u/") || username.startsWith("/u/")) && 
+        (platforms.includes("reddit") || platforms.includes("all"))) {
+      // Remove 'u/' or '/u/' prefix
+      username = username.startsWith("u/") ? username.substring(2) : username.substring(3);
       console.log("Detected Reddit username format, converted to:", username);
     }
     
@@ -129,6 +131,9 @@ export default function SearchForm() {
                     />
                   </FormControl>
                   <FormMessage />
+                  <div className="text-xs text-gray-500 mt-1">
+                    For Reddit, you can enter username with or without the u/ prefix
+                  </div>
                 </FormItem>
               )}
             />
