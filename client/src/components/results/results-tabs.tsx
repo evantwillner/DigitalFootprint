@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import SummaryTab from "@/components/results/summary-tab";
 import ActivityTab from "@/components/results/activity-tab";
+import TimelineTab from "@/components/results/timeline-tab";
 import ContentTab from "@/components/results/content-tab";
 import ConnectionsTab from "@/components/results/connections-tab";
 import RecommendationsTab from "@/components/results/recommendations-tab";
@@ -39,6 +40,10 @@ export default function ResultsTabs({ data, isLoading }: ResultsTabsProps) {
         
         <TabsContent value="activity" className="p-6">
           <ActivityTab data={data} isLoading={isLoading} />
+        </TabsContent>
+        
+        <TabsContent value="timeline" className="p-6">
+          <TimelineTab data={data} isLoading={isLoading} />
         </TabsContent>
         
         <TabsContent value="content" className="p-6">

@@ -26,7 +26,13 @@ export const platformEnum = z.enum([
   "facebook",
   "reddit",
   "twitter",
-  "linkedin"
+  "linkedin",
+  "tiktok",
+  "youtube",
+  "pinterest",
+  "snapchat",
+  "github",
+  "medium"
 ]);
 
 export type Platform = z.infer<typeof platformEnum>;

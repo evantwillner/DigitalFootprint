@@ -13,6 +13,7 @@ export const AVAILABLE_PLATFORMS: Platform[] = [
 export const RESULT_TABS: TabItem[] = [
   { id: "summary", label: "Summary" },
   { id: "activity", label: "Activity Analysis" },
+  { id: "timeline", label: "Interactive Timeline" },
   { id: "content", label: "Content Analysis" },
   { id: "connections", label: "Connections" },
   { id: "recommendations", label: "Recommendations" }
