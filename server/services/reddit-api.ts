@@ -57,16 +57,30 @@ export class RedditApiService {
    * Get OAuth access token for Reddit API
    */
   private async getAccessToken(): Promise<string> {
+    console.log('[DEBUG REDDIT AUTH] getAccessToken called');
+    
     // Check if we already have a valid token
     if (this.accessToken && Date.now() < this.tokenExpiration) {
+      console.log('[DEBUG REDDIT AUTH] Using existing token (still valid)');
       return this.accessToken;
     }
     
+    console.log('[DEBUG REDDIT AUTH] Need to get a new token');
+    console.log('[DEBUG REDDIT AUTH] Credentials check:', {
+      clientIdExists: !!this.clientId,
+      clientSecretExists: !!this.clientSecret,
+      clientIdLength: this.clientId ? this.clientId.length : 0,
+      clientSecretLength: this.clientSecret ? this.clientSecret.length : 0
+    });
+    
     if (!this.clientId || !this.clientSecret) {
+      console.error('[DEBUG REDDIT AUTH] Missing credentials');
       throw new Error('Reddit API credentials not configured');
     }
     
     try {
+      console.log('[DEBUG REDDIT AUTH] Requesting new token from Reddit API');
+      
       // Use Reddit's OAuth endpoint to get an application-only token
       // See: https://github.com/reddit-archive/reddit/wiki/OAuth2
       const response = await axios({
@@ -86,6 +100,12 @@ export class RedditApiService {
         })
       });
       
+      console.log('[DEBUG REDDIT AUTH] Token response received:', {
+        status: response.status,
+        hasAccessToken: !!response.data.access_token,
+        expiresIn: response.data.expires_in
+      });
+      
       this.accessToken = response.data.access_token;
       // Set expiration time (Reddit tokens last for 1 hour)
       this.tokenExpiration = Date.now() + (response.data.expires_in * 1000);
@@ -93,11 +113,21 @@ export class RedditApiService {
       log('Reddit API access token obtained successfully', 'reddit-api');
       
       if (!this.accessToken) {
+        console.error('[DEBUG REDDIT AUTH] Empty token received');
         throw new Error('Received empty access token from Reddit API');
       }
       
+      console.log('[DEBUG REDDIT AUTH] Token acquired successfully');
       return this.accessToken;
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[DEBUG REDDIT AUTH] Error getting token:', error.message);
+      if (error.response) {
+        console.error('[DEBUG REDDIT AUTH] Response error:', {
+          status: error.response.status,
+          data: error.response.data,
+          headers: error.response.headers
+        });
+      }
       log(`Error obtaining Reddit access token: ${error}`, 'reddit-api');
       throw new Error('Failed to authenticate with Reddit API');
     }
@@ -108,7 +138,10 @@ export class RedditApiService {
    */
   private async makeApiRequest(endpoint: string): Promise<any> {
     try {
+      log(`Making Reddit API request to endpoint: ${endpoint}`, 'reddit-api');
       const token = await this.getAccessToken();
+      
+      console.log(`[DEBUG REDDIT API] Making API request to: https://oauth.reddit.com${endpoint}`);
       const response = await axios({
         method: 'get',
         url: `https://oauth.reddit.com${endpoint}`,
@@ -118,8 +151,19 @@ export class RedditApiService {
         }
       });
       
+      console.log(`[DEBUG REDDIT API] Response status: ${response.status}`);
+      console.log(`[DEBUG REDDIT API] Response data received for ${endpoint}, data type: ${typeof response.data}`);
+      
+      if (endpoint.includes('/about')) {
+        // Log the first bit of the user profile data for debugging
+        console.log('[DEBUG REDDIT API] User profile data snippet:', 
+          JSON.stringify(response.data).substring(0, 300)
+        );
+      }
+      
       return response.data;
     } catch (error: any) {
+      console.error(`[DEBUG REDDIT API ERROR] Request to ${endpoint} failed:`, error.message);
       log(`Reddit API request failed: ${error.message}`, 'reddit-api');
       throw error;
     }
