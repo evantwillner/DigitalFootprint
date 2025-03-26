@@ -16,22 +16,43 @@ import SubscriptionSuccess from "@/pages/subscription-success";
 import { ProtectedRoute } from "@/lib/protected-route";
 import { AuthProvider } from "@/hooks/use-auth";
 import AuthPage from "@/pages/auth-page";
+import { PageTransition, RouteChangeIndicator } from "@/components/ui/page-transition";
+import { FullscreenLoader } from "@/components/ui/fullscreen-loader";
+import { useState, useEffect } from "react";
+
+// Initial app loading animation
+function AppLoader() {
+  const [isLoading, setIsLoading] = useState(true);
+  
+  useEffect(() => {
+    // Show initial loading screen briefly
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 1500);
+    
+    return () => clearTimeout(timer);
+  }, []);
+  
+  return <FullscreenLoader isLoading={isLoading} message="Preparing your digital footprint tools..." />;
+}
 
 function Router() {
   return (
-    <Switch>
-      <ProtectedRoute path="/" component={Home} />
-      <Route path="/auth" component={AuthPage} />
-      <Route path="/search" component={Search} />
-      <Route path="/results" component={Results} />
-      <Route path="/pricing" component={Pricing} />
-      <ProtectedRoute path="/deletion" component={Deletion} />
-      <ProtectedRoute path="/checkout" component={Checkout} />
-      <ProtectedRoute path="/subscribe" component={Subscribe} />
-      <ProtectedRoute path="/payment-success" component={PaymentSuccess} />
-      <ProtectedRoute path="/subscription-success" component={SubscriptionSuccess} />
-      <Route component={NotFound} />
-    </Switch>
+    <PageTransition transition="reveal">
+      <Switch>
+        <ProtectedRoute path="/" component={Home} />
+        <Route path="/auth" component={AuthPage} />
+        <Route path="/search" component={Search} />
+        <Route path="/results" component={Results} />
+        <Route path="/pricing" component={Pricing} />
+        <ProtectedRoute path="/deletion" component={Deletion} />
+        <ProtectedRoute path="/checkout" component={Checkout} />
+        <ProtectedRoute path="/subscribe" component={Subscribe} />
+        <ProtectedRoute path="/payment-success" component={PaymentSuccess} />
+        <ProtectedRoute path="/subscription-success" component={SubscriptionSuccess} />
+        <Route component={NotFound} />
+      </Switch>
+    </PageTransition>
   );
 }
 
@@ -39,6 +60,8 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
+        <AppLoader />
+        <RouteChangeIndicator />
         <Layout>
           <Router />
         </Layout>
