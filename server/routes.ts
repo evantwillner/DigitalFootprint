@@ -1,4 +1,4 @@
-import express, { type Express, Request, Response } from "express";
+import express, { type Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { 
@@ -68,28 +68,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Create deletion request (demo mode: no authentication required)
+  // Create deletion request (requires authentication)
   apiRouter.post("/deletion-request", async (req: Request, res: Response) => {
     try {
-      // For demo purposes, we'll accept deletion requests without authentication
-      // In a production app, we would require authentication
+      // Production security: Ensure user is authenticated
+      if (!req.session?.userId) {
+        return res.status(401).json({ 
+          message: "Authentication required",
+          error: "You must be logged in to submit a deletion request." 
+        });
+      }
       
-      // Parse and validate the deletion request
+      // Get the user to verify they exist and ownership
+      const user = await storage.getUser(req.session.userId);
+      if (!user) {
+        return res.status(404).json({ 
+          message: "User not found",
+          error: "Your user account could not be verified." 
+        });
+      }
+      
+      // Validate that the username in the request matches the authenticated user
+      if (req.body.username && req.body.username !== user.username) {
+        return res.status(403).json({ 
+          message: "Forbidden",
+          error: "You can only request deletion for your own account." 
+        });
+      }
+      
+      // Parse and validate the deletion request with proper security measures
       const deletionRequest = insertDeletionRequestSchema.parse({
         ...req.body,
-        userId: null, // Set to null for non-authenticated requests
-        details: { // Add required details field with reason
-          reason: "User requested deletion via form",
-          requestedAt: new Date().toISOString()
+        // Always use the session userId to prevent spoofing
+        userId: req.session.userId,
+        // Store detailed information for audit purposes
+        details: { 
+          reason: req.body.reason || "User requested deletion via authenticated session",
+          requestedAt: new Date().toISOString(),
+          ipAddress: req.ip,
+          userAgent: req.headers["user-agent"]
         }
       });
+      
+      // Log the deletion request (for audit/compliance purposes)
+      console.log(`Deletion request initiated by user ${user.username} (ID: ${user.id}) for platforms: ${deletionRequest.platforms.join(", ")}`);
       
       // Create the deletion request
       const result = await storage.createDeletionRequest(deletionRequest);
       
+      // In a production environment, you might also want to:
+      // 1. Send confirmation email to the user's verified email address
+      // 2. Trigger appropriate workflows for each platform
+      // 3. Update user record with deletion request status
+      
       return res.status(201).json(result);
     } catch (err) {
-      return handleZodError(err, res);
+      // Enhanced error handling
+      if (err instanceof ZodError) {
+        return handleZodError(err, res);
+      }
+      
+      // Log all errors for security monitoring
+      console.error("Deletion request error:", err);
+      return res.status(500).json({ 
+        message: "Internal server error",
+        error: "An unexpected error occurred while processing your deletion request."
+      });
     }
   });
   

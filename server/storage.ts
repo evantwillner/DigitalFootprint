@@ -81,7 +81,12 @@ export class MemStorage implements IStorage {
   async saveSearch(search: InsertSearchHistory): Promise<SearchHistory> {
     const id = this.currentSearchId++;
     const timestamp = new Date();
-    const newSearch: SearchHistory = { ...search, id, timestamp };
+    const newSearch: SearchHistory = { 
+      ...search, 
+      id, 
+      timestamp,
+      userId: search.userId || null,
+    };
     this.searches.set(id, newSearch);
     return newSearch;
   }
@@ -96,7 +101,12 @@ export class MemStorage implements IStorage {
   async saveDigitalFootprint(footprint: InsertDigitalFootprint): Promise<DigitalFootprint> {
     const id = this.currentFootprintId++;
     const timestamp = new Date();
-    const newFootprint: DigitalFootprint = { ...footprint, id, timestamp };
+    const newFootprint: DigitalFootprint = { 
+      ...footprint, 
+      id, 
+      timestamp,
+      searchId: footprint.searchId || null 
+    };
     this.footprints.set(id, newFootprint);
     return newFootprint;
   }
@@ -115,7 +125,13 @@ export class MemStorage implements IStorage {
   async createDeletionRequest(request: InsertDeletionRequest): Promise<DeletionRequest> {
     const id = this.currentRequestId++;
     const timestamp = new Date();
-    const newRequest: DeletionRequest = { ...request, id, status: "pending", timestamp };
+    const newRequest: DeletionRequest = { 
+      ...request, 
+      id, 
+      status: "pending", 
+      timestamp,
+      userId: request.userId || null
+    };
     this.deletionRequests.set(id, newRequest);
     return newRequest;
   }

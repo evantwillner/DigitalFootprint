@@ -37,19 +37,64 @@ export default function Deletion() {
     }
   });
 
+  // Production-ready submission handler with proper error handling
   const onSubmit = async (values: DeletionFormValues) => {
     setSubmitting(true);
     try {
-      await apiRequest({
+      const response = await apiRequest({
         url: "/api/deletion-request",
         method: "POST",
         body: {
           username: values.username,
-          platforms: values.platforms
+          platforms: values.platforms,
+          // Could include additional reason information from form
+          reason: "User-initiated deletion request via web form"
         },
-        throwOnError: true
+        // Don't throw automatically - handle specific status codes
+        throwOnError: false
       });
       
+      // Handle different response statuses properly
+      if (response.status === 401) {
+        // Unauthorized - user needs to log in
+        toast({
+          title: "Authentication Required",
+          description: "Please log in to submit a deletion request.",
+          variant: "destructive"
+        });
+        
+        // In a real app, we'd redirect to login
+        // navigate("/login?redirect=/deletion");
+        
+        // For the demo, just show an error and allow another attempt
+        setSubmitting(false);
+        return;
+      }
+      
+      if (response.status === 403) {
+        // Forbidden - e.g., trying to delete someone else's account
+        toast({
+          title: "Access Denied",
+          description: "You can only request deletion for your own account.",
+          variant: "destructive"
+        });
+        setSubmitting(false);
+        return;
+      }
+      
+      if (!response.ok) {
+        // Generic error handling for other errors
+        const errorData = await response.json().catch(() => null);
+        toast({
+          title: "Error",
+          description: errorData?.error || ERROR_MESSAGES.serverError,
+          variant: "destructive"
+        });
+        setSubmitting(false);
+        return;
+      }
+      
+      // Success path
       setSubmitSuccess(true);
       toast({
         title: "Success",
@@ -58,9 +103,11 @@ export default function Deletion() {
       });
       form.reset();
     } catch (error) {
+      // Network/connection errors
+      console.error("Deletion request error:", error);
       toast({
-        title: "Error",
-        description: ERROR_MESSAGES.serverError,
+        title: "Connection Error",
+        description: "Could not connect to the server. Please check your internet connection and try again.",
         variant: "destructive"
       });
     } finally {
