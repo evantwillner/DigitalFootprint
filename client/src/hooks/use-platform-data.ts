@@ -187,11 +187,8 @@ const SAMPLE_DATA: DigitalFootprintResponse = {
 
 /**
  * Custom hook for retrieving digital footprint data
- * This hook checks sessionStorage for existing results
- * or provides sample data for testing
- * 
- * Note: This version includes a testing mode that returns sample data
- * for demonstration purposes.
+ * This hook checks sessionStorage for existing results from actual API responses
+ * and redirects to search if no data is found
  */
 export default function usePlatformData(): UsePlatformDataResult {
   const [data, setData] = useState<DigitalFootprintResponse>();
@@ -212,17 +209,9 @@ export default function usePlatformData(): UsePlatformDataResult {
           const parsedData = JSON.parse(storedData) as DigitalFootprintResponse;
           setData(parsedData);
         } else {
-          // For testing: Use sample data instead of redirecting
-          const testMode = true; // Set to true to enable test mode
-          
-          if (testMode) {
-            // Use sample data for testing
-            setData(SAMPLE_DATA);
-          } else {
-            // Normal behavior - redirect to search
-            navigate("/search");
-            throw new Error("No search results found. Please perform a search first.");
-          }
+          // No data found - redirect to search
+          navigate("/search");
+          throw new Error("No search results found. Please perform a search first.");
         }
       } catch (err) {
         setError(err instanceof Error ? err : new Error(String(err)));

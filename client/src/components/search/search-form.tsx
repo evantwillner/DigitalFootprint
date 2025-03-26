@@ -76,10 +76,19 @@ export default function SearchForm() {
 
   // Form submission handler
   const onSubmit = (values: SearchFormValues) => {
+    // Make sure we have at least one platform selected
+    const platforms = selectedPlatforms.length > 0 ? selectedPlatforms : [values.platform];
+    
     // Start search with the form values and selected platforms
     searchMutation.mutate({
       username: values.username,
-      platforms: selectedPlatforms.length > 0 ? selectedPlatforms : [values.platform],
+      platforms: platforms,
+    });
+    
+    // For debugging
+    console.log("Submitting search:", {
+      username: values.username,
+      platforms: platforms,
     });
   };
 
