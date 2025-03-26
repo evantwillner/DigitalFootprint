@@ -7,19 +7,27 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
-export async function apiRequest(
-  method: string,
+export async function apiRequest({
+  url,
+  method = "GET",
+  body,
+  throwOnError = true
+}: {
   url: string,
-  data?: unknown | undefined,
-): Promise<Response> {
+  method?: string,
+  body?: any,
+  throwOnError?: boolean
+}): Promise<Response> {
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
-    body: data ? JSON.stringify(data) : undefined,
+    headers: body ? { "Content-Type": "application/json" } : {},
+    body: body ? JSON.stringify(body) : undefined,
     credentials: "include",
   });
 
-  await throwIfResNotOk(res);
+  if (throwOnError) {
+    await throwIfResNotOk(res);
+  }
   return res;
 }
 

@@ -8,6 +8,7 @@ import Home from "@/pages/home";
 import Search from "@/pages/search";
 import Results from "@/pages/results";
 import Pricing from "@/pages/pricing";
+import Deletion from "@/pages/deletion";
 
 function Router() {
   return (
@@ -16,6 +17,7 @@ function Router() {
       <Route path="/search" component={Search} />
       <Route path="/results" component={Results} />
       <Route path="/pricing" component={Pricing} />
+      <Route path="/deletion" component={Deletion} />
       <Route component={NotFound} />
     </Switch>
   );
