@@ -17,6 +17,12 @@ import { setupSession, trackActivity } from "./middleware/session";
 import Stripe from "stripe";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Set up Stripe
+  if (!process.env.STRIPE_SECRET_KEY) {
+    throw new Error('Missing required Stripe secret: STRIPE_SECRET_KEY');
+  }
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+  
   // Set up session middleware
   setupSession(app);
   
@@ -174,6 +180,151 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (err) {
       console.error(err);
       return res.status(500).json({ message: "Failed to fetch deletion requests" });
+    }
+  });
+
+  // Stripe payment route for one-time payments
+  apiRouter.post("/create-payment-intent", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { amount } = req.body;
+      
+      if (!amount || isNaN(amount)) {
+        return res.status(400).json({ message: "Valid amount is required" });
+      }
+      
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: Math.round(amount * 100), // Convert to cents
+        currency: "usd",
+        metadata: {
+          userId: req.session!.userId!.toString(),
+        },
+      });
+      
+      res.json({ clientSecret: paymentIntent.client_secret });
+    } catch (error: any) {
+      console.error("Stripe payment error:", error);
+      res.status(500).json({ 
+        message: "Error creating payment intent", 
+        error: error.message 
+      });
+    }
+  });
+
+  // Create or retrieve a subscription
+  apiRouter.post("/get-or-create-subscription", requireAuth, async (req: Request, res: Response) => {
+    if (!req.session?.userId) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+
+    const user = await storage.getUser(req.session.userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // If user already has a subscription, retrieve it
+    if (user.stripeSubscriptionId) {
+      try {
+        const subscription = await stripe.subscriptions.retrieve(user.stripeSubscriptionId);
+        
+        // Check if there's a payment intent to return
+        const latestInvoice = subscription.latest_invoice;
+        if (typeof latestInvoice === 'string') {
+          const invoice = await stripe.invoices.retrieve(latestInvoice);
+          const paymentIntentId = invoice.payment_intent;
+          
+          if (typeof paymentIntentId === 'string') {
+            const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+            
+            return res.json({
+              subscriptionId: subscription.id,
+              clientSecret: paymentIntent.client_secret,
+            });
+          }
+        }
+        
+        return res.json({
+          subscriptionId: subscription.id,
+          status: subscription.status,
+        });
+      } catch (error: any) {
+        console.error("Error retrieving subscription:", error);
+        // If the subscription doesn't exist anymore, we'll create a new one
+      }
+    }
+    
+    // No subscription exists, create a customer and subscription
+    try {
+      // Get the selected plan from the request body, default to Pro
+      const planName = req.body.planName || "Pro Cleanup";
+      const plans = await storage.getSubscriptionPlans();
+      const selectedPlan = plans.find(p => p.name === planName);
+      
+      if (!selectedPlan) {
+        return res.status(400).json({ message: "Invalid plan selected" });
+      }
+      
+      // Create or get the Stripe customer
+      let customerId = user.stripeCustomerId;
+      
+      if (!customerId) {
+        // Create a new customer
+        const customer = await stripe.customers.create({
+          email: user.email,
+          name: user.username,
+          metadata: {
+            userId: user.id.toString(),
+          },
+        });
+        
+        customerId = customer.id;
+        // Update user with new customer ID
+        await storage.updateStripeCustomerId(user.id, customerId);
+      }
+      
+      // Create the subscription
+      const subscription = await stripe.subscriptions.create({
+        customer: customerId,
+        items: [{
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: selectedPlan.name,
+              description: selectedPlan.description,
+            },
+            unit_amount: selectedPlan.price * 100, // price in cents
+            recurring: {
+              interval: 'month',
+            },
+          },
+        }],
+        payment_behavior: 'default_incomplete',
+        expand: ['latest_invoice.payment_intent'],
+      });
+      
+      // Update user with subscription ID
+      await storage.updateStripeSubscriptionId(user.id, subscription.id);
+      
+      // Get client secret from the invoice
+      const invoice = subscription.latest_invoice;
+      let clientSecret = null;
+      
+      if (invoice && typeof invoice !== 'string' && invoice.payment_intent) {
+        const paymentIntent = invoice.payment_intent;
+        if (typeof paymentIntent !== 'string' && paymentIntent.client_secret) {
+          clientSecret = paymentIntent.client_secret;
+        }
+      }
+      
+      return res.json({
+        subscriptionId: subscription.id,
+        clientSecret,
+      });
+    } catch (error: any) {
+      console.error("Error creating subscription:", error);
+      return res.status(500).json({ 
+        message: "Error creating subscription", 
+        error: error.message 
+      });
     }
   });
 
