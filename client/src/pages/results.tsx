@@ -13,6 +13,16 @@ export default function Results() {
   const { data, isLoading, error } = usePlatformData();
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  
+  // Create a direct link to navigate to the timeline tab
+  useEffect(() => {
+    if (data && !isLoading) {
+      toast({
+        title: "Interactive Timeline Available",
+        description: "Click on the 'Interactive Timeline' tab to explore the animated timeline view",
+      });
+    }
+  }, [data, isLoading, toast]);
 
   // Handle export action
   const handleExport = () => {
