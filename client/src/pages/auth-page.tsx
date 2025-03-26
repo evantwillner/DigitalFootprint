@@ -101,12 +101,12 @@ export default function AuthPage() {
   return (
     <div className="flex min-h-screen">
       {/* Left column: Authentication form */}
-      <div className="flex items-center justify-center w-full lg:w-1/2 p-8">
-        <Card className="w-full max-w-md">
+      <div className="flex items-center justify-center w-full lg:w-1/2 p-8 bg-gradient-to-br from-indigo-50/50 via-white to-purple-50/30">
+        <Card className="w-full max-w-md glass-card border-none shadow-xl">
           <CardHeader>
-            <CardTitle>Welcome to Digital Footprint Analyzer</CardTitle>
-            <CardDescription>
-              Login or create an account to manage your digital presence
+            <CardTitle className="text-2xl font-display font-bold heading-gradient-vibrant">Digital Footprint Analyzer</CardTitle>
+            <CardDescription className="text-base">
+              Sign in or create an account to manage your digital presence
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -148,16 +148,16 @@ export default function AuthPage() {
                     />
                     <Button 
                       type="submit" 
-                      className="w-full" 
+                      className="w-full button-gradient font-medium text-base" 
                       disabled={loginMutation.isPending}
                     >
                       {loginMutation.isPending ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Logging in...
+                          Signing in...
                         </>
                       ) : (
-                        "Login"
+                        "Sign In"
                       )}
                     </Button>
                   </form>
@@ -222,7 +222,7 @@ export default function AuthPage() {
                     />
                     <Button 
                       type="submit" 
-                      className="w-full" 
+                      className="w-full button-gradient font-medium text-base" 
                       disabled={registerMutation.isPending}
                     >
                       {registerMutation.isPending ? (
@@ -257,32 +257,32 @@ export default function AuthPage() {
       </div>
       
       {/* Right column: Hero section */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-r from-primary/10 to-primary/20 flex-col items-center justify-center p-12">
-        <div className="max-w-lg text-center">
-          <h1 className="text-4xl font-bold mb-6">
-            Discover and Manage Your <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary-foreground">Digital Footprint</span>
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-indigo-50 via-purple-50/70 to-pink-50/40 flex-col items-center justify-center p-12">
+        <div className="max-w-lg text-center glass-effect p-10 rounded-2xl fade-in">
+          <h1 className="text-4xl font-display font-bold mb-6 tracking-tight">
+            Discover and Manage Your <span className="heading-gradient-vibrant">Digital Footprint</span>
           </h1>
-          <p className="text-xl mb-8">
-            Take control of your online presence with our comprehensive analytics and data removal tools.
+          <p className="text-xl mb-8 text-gray-700">
+            Take control of your online presence with our comprehensive analytics and privacy tools.
           </p>
-          <div className="space-y-4">
-            <div className="flex items-center">
-              <div className="mr-4 p-2 rounded-full bg-primary/10">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary"><path d="m21 21-6-6m6 6v-4.8m0 4.8h-4.8"/><path d="M3 16.2V21m0-4.8L9 21"/><path d="M3 7.8V3m0 4.8L9 3"/><path d="M21 7.8V3m0 4.8L15 3"/></svg>
+          <div className="space-y-6">
+            <div className="flex items-center bg-white/70 rounded-xl p-3 shadow-sm">
+              <div className="mr-4 p-2 rounded-full bg-gradient-to-br from-violet-100 to-indigo-100 shadow-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-violet-600"><path d="m21 21-6-6m6 6v-4.8m0 4.8h-4.8"/><path d="M3 16.2V21m0-4.8L9 21"/><path d="M3 7.8V3m0 4.8L9 3"/><path d="M21 7.8V3m0 4.8L15 3"/></svg>
               </div>
-              <p>Scan and analyze your presence across multiple platforms</p>
+              <p className="text-left text-gray-700 font-medium">Scan and analyze your presence across multiple platforms</p>
             </div>
-            <div className="flex items-center">
-              <div className="mr-4 p-2 rounded-full bg-primary/10">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary"><path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5"/><path d="M8.5 8.5v.01"/><path d="M16 15.5v.01"/><path d="M12 12v.01"/><path d="M11 17v.01"/><path d="M7 14v.01"/></svg>
+            <div className="flex items-center bg-white/70 rounded-xl p-3 shadow-sm">
+              <div className="mr-4 p-2 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100 shadow-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-600"><path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5"/><path d="M8.5 8.5v.01"/><path d="M16 15.5v.01"/><path d="M12 12v.01"/><path d="M11 17v.01"/><path d="M7 14v.01"/></svg>
               </div>
-              <p>Get detailed insights into your digital identity</p>
+              <p className="text-left text-gray-700 font-medium">Get detailed insights into your digital identity</p>
             </div>
-            <div className="flex items-center">
-              <div className="mr-4 p-2 rounded-full bg-primary/10">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary"><path d="M18.5 8.5 21 6l-3-3-2.5 2.5C14 4.5 12 3.5 9.5 3.5c-6 0-9 3-9 9s3 9 9 9 9-3 9-9c0-2.5-1-4.5-2-6Z"/><path d="m12 9 3 3"/><path d="M9 12h6"/></svg>
+            <div className="flex items-center bg-white/70 rounded-xl p-3 shadow-sm">
+              <div className="mr-4 p-2 rounded-full bg-gradient-to-br from-purple-100 to-pink-100 shadow-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-purple-600"><path d="M18.5 8.5 21 6l-3-3-2.5 2.5C14 4.5 12 3.5 9.5 3.5c-6 0-9 3-9 9s3 9 9 9 9-3 9-9c0-2.5-1-4.5-2-6Z"/><path d="m12 9 3 3"/><path d="M9 12h6"/></svg>
               </div>
-              <p>Remove unwanted content with our premium services</p>
+              <p className="text-left text-gray-700 font-medium">Remove unwanted content with our premium services</p>
             </div>
           </div>
         </div>
