@@ -180,6 +180,24 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
   let redditRecommendations: string[] = [];
   
   if (redditData) {
+    // Add insight about total karma/posts - directly from the data
+    const totalPosts = redditData.activityData?.totalPosts || 0;
+    const totalComments = redditData.activityData?.totalComments || 0;
+    
+    redditInsights.push({
+      insight: `Account has ${totalPosts + totalComments} total karma points, with ${totalPosts} from posts and ${totalComments} from comments.`,
+      type: "info"
+    });
+    
+    // Add insight about when the account was created - directly from the data
+    const joinDate = new Date(redditData.profileData?.joinDate || "");
+    const formattedDate = joinDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    
+    redditInsights.push({
+      insight: `Reddit account created in ${formattedDate}.`,
+      type: "info"
+    });
+    
     // Add insights based on Reddit account age
     if (redditSpecificStats.accountAge.includes("1 year") || 
         (redditSpecificStats.accountAge.includes("years") && parseInt(redditSpecificStats.accountAge) <= 2)) {
@@ -225,17 +243,26 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
     }
     
     // Add insights based on number of subreddits
-    if (redditSpecificStats.topSubreddits.length > 10) {
-      redditInsights.push({
-        insight: "Active in many different subreddits, creating a diverse digital footprint.",
-        type: "warning"
-      });
-      redditRecommendations.push("Review posts across different subreddits to ensure consistency in privacy practices.");
-    } else if (redditSpecificStats.topSubreddits.length <= 3 && redditSpecificStats.topSubreddits.length > 0) {
-      redditInsights.push({
-        insight: "Activity concentrated in just a few subreddits, limiting digital footprint scope.",
-        type: "info"
-      });
+    if (redditSpecificStats.topSubreddits.length > 0) {
+      const subredditList = redditSpecificStats.topSubreddits.slice(0, 3).map(s => `r/${s}`).join(", ");
+      
+      if (redditSpecificStats.topSubreddits.length > 10) {
+        redditInsights.push({
+          insight: `Active in many different subreddits (${redditSpecificStats.topSubreddits.length} total), including ${subredditList}.`,
+          type: "warning"
+        });
+        redditRecommendations.push("Review posts across different subreddits to ensure consistency in privacy practices.");
+      } else if (redditSpecificStats.topSubreddits.length <= 3) {
+        redditInsights.push({
+          insight: `Activity concentrated in just a few subreddits: ${subredditList}.`,
+          type: "info"
+        });
+      } else {
+        redditInsights.push({
+          insight: `Active in ${redditSpecificStats.topSubreddits.length} subreddits, including ${subredditList}.`,
+          type: "info"
+        });
+      }
     }
     
     // Additional Reddit-specific privacy concerns
@@ -308,40 +335,46 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
         <Card>
           <CardContent className="pt-6">
             <p className="text-gray-700 mb-3">
-              Based on the analysis of <span className="font-medium">{data.username}</span>'s public digital footprint across {data.platforms.join(", ")}, we've generated the following insights:
+              Based on the analysis of <span className="font-medium">{data.username}</span>'s public Reddit activity, we've generated the following Reddit-specific insights:
             </p>
             <ul className="space-y-2 text-gray-700">
-              {/* Combine general insights with platform-specific insights */}
-              {[...data.summary.topInsights, ...redditInsights].map((insight, index) => (
-                <li key={index} className="flex items-start">
-                  <span className={`mr-2 mt-0.5 ${insight.type === 'warning' ? 'text-warning' : 'text-primary'}`}>
-                    <svg 
-                      xmlns="http://www.w3.org/2000/svg" 
-                      width="20" 
-                      height="20" 
-                      viewBox="0 0 24 24" 
-                      fill="none" 
-                      stroke="currentColor" 
-                      strokeWidth="2" 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round"
-                    >
-                      {insight.type === 'warning' ? (
-                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                      ) : (
-                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                      )}
-                      {insight.type === 'warning' ? (
-                        <path d="M12 9v4" />
-                      ) : (
-                        <polyline points="9 11 12 14 22 4" />
-                      )}
-                      {insight.type === 'warning' && <path d="M12 16h.01" />}
-                    </svg>
-                  </span>
-                  <span>{insight.insight}</span>
+              {/* Only use Reddit-specific insights that we've dynamically generated */}
+              {redditInsights.length > 0 ? (
+                redditInsights.map((insight, index) => (
+                  <li key={index} className="flex items-start">
+                    <span className={`mr-2 mt-0.5 ${insight.type === 'warning' ? 'text-warning' : 'text-primary'}`}>
+                      <svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        width="20" 
+                        height="20" 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        strokeWidth="2" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round"
+                      >
+                        {insight.type === 'warning' ? (
+                          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                        ) : (
+                          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                        )}
+                        {insight.type === 'warning' ? (
+                          <path d="M12 9v4" />
+                        ) : (
+                          <polyline points="9 11 12 14 22 4" />
+                        )}
+                        {insight.type === 'warning' && <path d="M12 16h.01" />}
+                      </svg>
+                    </span>
+                    <span>{insight.insight}</span>
+                  </li>
+                ))
+              ) : (
+                <li>
+                  <p className="text-gray-500">No insights available for this Reddit account.</p>
                 </li>
-              ))}
+              )}
             </ul>
           </CardContent>
         </Card>
