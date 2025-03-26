@@ -116,6 +116,22 @@ export class RedditApiService {
    * Create mock data for a Reddit user if real data isn't available
    * This is temporary while developing and testing
    */
+  private mockPlatformResponse(username: string): PlatformData {
+    // Generate random profile data
+    const now = new Date();
+    const joinDate = new Date(now);
+    joinDate.setFullYear(joinDate.getFullYear() - Math.floor(Math.random() * 5) - 1);
+    
+    const postCount = Math.floor(Math.random() * 300) + 50;
+    const commentCount = Math.floor(Math.random() * 1000) + 200;
+    const followerCount = Math.floor(Math.random() * 500) + 10;
+    
+    // Generate topics 
+    const topics = [
+      { topic: "Technology", percentage: 45 },
+      { topic: "Privacy", percentage: 30 },
+      { topic: "Data Security", percentage: 25 }
+    ];
     
     // Generate fake activity timeline
     const activityTimeline = Array.from({ length: 12 }, (_, i) => {
@@ -230,7 +246,7 @@ export class RedditApiService {
       // Check if we found a user
       if (!userData || !userData.data) {
         log(`Reddit user ${username} not found or returned empty data`, 'reddit-api');
-        return this.mockPlatformResponse('reddit', username); // Fall back to mock data if user not found
+        return this.mockPlatformResponse(username); // Fall back to mock data if user not found
       }
       
       // Get user's recent posts
@@ -249,7 +265,7 @@ export class RedditApiService {
       // Handle 404 - User not found
       if (error.response && error.response.status === 404) {
         log(`Reddit user ${username} not found`, 'reddit-api');
-        return this.mockPlatformResponse('reddit', username); // Fall back to mock data if user not found
+        return this.mockPlatformResponse(username); // Fall back to mock data if user not found
       }
       
       log(`Error fetching Reddit data: ${error.message}`, 'reddit-api');

@@ -116,14 +116,20 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
     }
   }
   
+  console.log("All platform data:", data.platformData.map(p => p.platformId));
   console.log("Found Reddit data:", redditData);
   
   // Use Reddit data if available, otherwise use first platform or generate fallback data
   const platformToUse = redditData || data.platformData[0];
   
-  console.log("Using platform data:", platformToUse);
+  console.log("Using platform data:", platformToUse?.platformId);
   console.log("Platform activity timeline:", platformToUse?.analysisResults?.activityTimeline);
   console.log("Platform topics:", platformToUse?.analysisResults?.topTopics);
+  
+  // Check Reddit credentials
+  console.log("Reddit credentials available:", 
+    !!process.env.REDDIT_CLIENT_ID && 
+    !!process.env.REDDIT_CLIENT_SECRET);
   
   const timelineData = platformToUse?.analysisResults?.activityTimeline?.map(item => ({
     name: item.period,
