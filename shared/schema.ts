@@ -120,6 +120,9 @@ export type InsertDeletionRequest = z.infer<typeof insertDeletionRequestSchema>;
 export type SubscriptionPlan = typeof subscriptionPlans.$inferSelect;
 export type UserSubscription = typeof userSubscriptions.$inferSelect;
 
+// Define a more specific type for DeletionRequest details to use in the frontend
+export type DeletionRequestDetails = Record<string, unknown>;
+
 // API response schema for platform data
 export const platformDataSchema = z.object({
   platformId: platformEnum,
