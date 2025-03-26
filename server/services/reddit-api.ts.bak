@@ -27,9 +27,9 @@ export class RedditApiService {
     this.clientSecret = process.env.REDDIT_CLIENT_SECRET;
     
     if (this.clientId && this.clientSecret) {
-      log('Reddit API credentials loaded', 'reddit-api');
+      log('Reddit API credentials loaded successfully', 'reddit-api');
     } else {
-      log('Missing Reddit API credentials', 'reddit-api');
+      log('Reddit API credentials missing or incomplete', 'reddit-api');
     }
   }
   
@@ -37,14 +37,14 @@ export class RedditApiService {
    * Check if the service has valid credentials
    */
   public hasValidCredentials(): boolean {
-    return Boolean(this.clientId && this.clientSecret);
+    return !!(this.clientId && this.clientSecret);
   }
   
   /**
    * Get OAuth access token for Reddit API
    */
   private async getAccessToken(): Promise<string> {
-    // Check if we already have a valid token
+    // If we have a valid token, return it
     if (this.accessToken && Date.now() < this.tokenExpiration) {
       return this.accessToken;
     }
@@ -54,16 +54,13 @@ export class RedditApiService {
     }
     
     try {
-      // Use Reddit's OAuth endpoint to get an application-only token
-      // See: https://github.com/reddit-archive/reddit/wiki/OAuth2
+      // Use Client Credentials flow for Reddit API
+      const auth = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
       const response = await axios({
         method: 'post',
         url: 'https://www.reddit.com/api/v1/access_token',
-        auth: {
-          username: this.clientId,
-          password: this.clientSecret
-        },
         headers: {
+          'Authorization': `Basic ${auth}`,
           'Content-Type': 'application/x-www-form-urlencoded',
           'User-Agent': 'Digital-Footprint-Analyzer/1.0.0'
         },
@@ -176,7 +173,7 @@ export class RedditApiService {
         posts.length + comments.length,
         new Date(profile.created_utc * 1000)
       ),
-      topSubreddits: this.extractTopSubreddits(posts, comments),
+      topSubreddits: this.extractTopSubreddits([...posts, ...comments]),
     };
     
     // Process content data
@@ -237,24 +234,13 @@ export class RedditApiService {
   /**
    * Extract top subreddits from posts and comments
    */
-  private extractTopSubreddits(posts: any[], comments: any[]): string[] {
+  private extractTopSubreddits(items: any[]): string[] {
     const subredditCounts: Record<string, number> = {};
     
-    posts.forEach(item => {
-      if (item.data && item.data.subreddit) {
-        const subreddit = item.data.subreddit;
-        if (subreddit) {
-          subredditCounts[subreddit] = (subredditCounts[subreddit] || 0) + 1;
-        }
-      }
-    });
-    
-    comments.forEach(item => {
-      if (item.data && item.data.subreddit) {
-        const subreddit = item.data.subreddit;
-        if (subreddit) {
-          subredditCounts[subreddit] = (subredditCounts[subreddit] || 0) + 1;
-        }
+    items.forEach(item => {
+      const subreddit = item.data.subreddit;
+      if (subreddit) {
+        subredditCounts[subreddit] = (subredditCounts[subreddit] || 0) + 1;
       }
     });
     
@@ -412,10 +398,10 @@ export class RedditApiService {
     
     // Combine all text content
     const allContent = [...posts, ...comments].map(item => {
-      if (item.data && 'selftext' in item.data) {
+      if ('selftext' in item.data) {
         return item.data.title + ' ' + (item.data.selftext || '');
       }
-      return item.data && item.data.body ? item.data.body : '';
+      return item.data.body || '';
     }).join(' ');
     
     // Check for personal information
@@ -486,8 +472,8 @@ export class RedditApiService {
     
     // Check for potential controversial content
     const controversialPosts = posts.filter(post => 
-      post.data && post.data.controversiality > 0 || 
-      (post.data && post.data.ups && post.data.downs && post.data.ups/post.data.downs < 0.7)
+      post.data.controversiality > 0 || 
+      (post.data.ups && post.data.downs && post.data.ups/post.data.downs < 0.7)
     );
     
     if (controversialPosts.length > 0) {
@@ -498,6 +484,8 @@ export class RedditApiService {
     }
     
     // Check if username matches display name
+    // Reddit API might not provide both name and username separately,
+    // so we check if we have appropriate properties before comparing
     if (profile.name && profile.subreddit && profile.subreddit.display_name) {
       if (profile.name === profile.subreddit.display_name) {
         concerns.push({ 
@@ -518,7 +506,7 @@ export class RedditApiService {
     });
     
     // Convert Set to array of strings first
-    const userSubredditsArray = Array.from(userSubreddits);
+    const userSubredditsArray = Array.from(userSubreddits) as string[];
     
     const matchingSensitiveSubreddits = sensitiveSubreddits.filter(sub => 
       userSubredditsArray.some(userSub => userSub.includes(sub))
@@ -552,10 +540,10 @@ export class RedditApiService {
     
     // Add specific recommendations based on analysis
     const allContent = [...posts, ...comments].map(item => {
-      if (item.data && 'selftext' in item.data) {
+      if ('selftext' in item.data) {
         return item.data.title + ' ' + (item.data.selftext || '');
       }
-      return item.data && item.data.body ? item.data.body : '';
+      return item.data.body || '';
     }).join(' ');
     
     if (/\b(my name is|i am|i'm|call me)\b/i.test(allContent)) {
@@ -580,28 +568,20 @@ export class RedditApiService {
     const topicCounts: Record<string, number> = {};
     const totalItems = posts.length + comments.length;
     
-    if (totalItems === 0) {
-      return [];
-    }
-    
     // Count topics in posts
     posts.forEach(post => {
-      if (post.data) {
-        const topics = this.extractTopics(post.data.title + ' ' + (post.data.selftext || ''));
-        topics.forEach(topic => {
-          topicCounts[topic] = (topicCounts[topic] || 0) + 1;
-        });
-      }
+      const topics = this.extractTopics(post.data.title + ' ' + (post.data.selftext || ''));
+      topics.forEach(topic => {
+        topicCounts[topic] = (topicCounts[topic] || 0) + 1;
+      });
     });
     
     // Count topics in comments
     comments.forEach(comment => {
-      if (comment.data && comment.data.body) {
-        const topics = this.extractTopics(comment.data.body);
-        topics.forEach(topic => {
-          topicCounts[topic] = (topicCounts[topic] || 0) + 1;
-        });
-      }
+      const topics = this.extractTopics(comment.data.body || '');
+      topics.forEach(topic => {
+        topicCounts[topic] = (topicCounts[topic] || 0) + 1;
+      });
     });
     
     // Convert to percentages
@@ -631,14 +611,12 @@ export class RedditApiService {
     
     // Count posts by month
     [...posts, ...comments].forEach(item => {
-      if (item.data && item.data.created_utc) {
-        const date = new Date(item.data.created_utc * 1000);
-        const periodKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
-        
-        // Only count if it's within our timeline periods
-        if (timeline[periodKey] !== undefined) {
-          timeline[periodKey]++;
-        }
+      const date = new Date(item.data.created_utc * 1000);
+      const periodKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+      
+      // Only count if it's within our timeline periods
+      if (timeline[periodKey] !== undefined) {
+        timeline[periodKey]++;
       }
     });
     
@@ -657,29 +635,21 @@ export class RedditApiService {
     
     // Analyze posts
     posts.forEach(post => {
-      if (post.data) {
-        const sentiment = this.analyzeSentiment(post.data.title + ' ' + (post.data.selftext || ''));
-        if (sentiment === 'positive') positive++;
-        else if (sentiment === 'negative') negative++;
-        else neutral++;
-      }
+      const sentiment = this.analyzeSentiment(post.data.title + ' ' + (post.data.selftext || ''));
+      if (sentiment === 'positive') positive++;
+      else if (sentiment === 'negative') negative++;
+      else neutral++;
     });
     
     // Analyze comments
     comments.forEach(comment => {
-      if (comment.data && comment.data.body) {
-        const sentiment = this.analyzeSentiment(comment.data.body);
-        if (sentiment === 'positive') positive++;
-        else if (sentiment === 'negative') negative++;
-        else neutral++;
-      }
+      const sentiment = this.analyzeSentiment(comment.data.body || '');
+      if (sentiment === 'positive') positive++;
+      else if (sentiment === 'negative') negative++;
+      else neutral++;
     });
     
     const total = posts.length + comments.length;
-    
-    if (total === 0) {
-      return { positive: 0, neutral: 0, negative: 0 };
-    }
     
     // Convert to percentages
     return {
