@@ -39,6 +39,19 @@ export class RedditApiService {
   public hasValidCredentials(): boolean {
     return Boolean(this.clientId && this.clientSecret);
   }
+
+  /**
+   * Get API status - used to show which platforms have active connections
+   */
+  public getApiStatus(): { configured: boolean; message: string } {
+    const configured = this.hasValidCredentials();
+    return {
+      configured,
+      message: configured 
+        ? "Reddit API is configured and ready" 
+        : "Reddit API is not configured. Add REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET to enable."
+    };
+  }
   
   /**
    * Get OAuth access token for Reddit API
@@ -117,11 +130,16 @@ export class RedditApiService {
    * This is temporary while developing and testing
    */
   private mockPlatformResponse(username: string): PlatformData {
-    // Generate random profile data
-    const now = new Date();
-    const joinDate = new Date(now);
-    joinDate.setFullYear(joinDate.getFullYear() - Math.floor(Math.random() * 5) - 1);
+    log(`Creating mock data for Reddit user: ${username}`, 'reddit-api');
     
+    // Current date for reference
+    const now = new Date();
+    
+    // Generate join date (1-5 years ago)
+    const joinDate = new Date();
+    joinDate.setFullYear(joinDate.getFullYear() - (1 + Math.floor(Math.random() * 4)));
+    
+    // Generate random content counts
     const postCount = Math.floor(Math.random() * 300) + 50;
     const commentCount = Math.floor(Math.random() * 1000) + 200;
     const followerCount = Math.floor(Math.random() * 500) + 10;
@@ -204,22 +222,18 @@ export class RedditApiService {
           { category: "Opinions", severity: "medium" },
           { category: "Personal Interests", severity: "low" },
         ],
-        potentialConcerns: [
-          { issue: "Comment history reveals interests", risk: "low" },
-          { issue: "Account activity patterns can be analyzed", risk: "medium" },
-        ],
-        recommendedActions: [
-          "Review privacy settings",
-          "Consider using alt accounts for sensitive topics",
-          "Regularly audit comment history",
-          "Use a VPN when accessing Reddit",
-        ],
         privacyConcerns: [
           {
             type: "Data aggregation",
             description: "Your Reddit history could be analyzed for patterns",
             severity: "medium"
           }
+        ],
+        recommendedActions: [
+          "Review privacy settings",
+          "Consider using alt accounts for sensitive topics",
+          "Regularly audit comment history",
+          "Use a VPN when accessing Reddit",
         ]
       }
     };
@@ -355,7 +369,7 @@ export class RedditApiService {
    */
   private calculatePostsPerDay(totalActivity: number, joinDate: Date): number {
     const accountAgeInDays = (Date.now() - joinDate.getTime()) / (1000 * 60 * 60 * 24);
-    return accountAgeInDays > 0 ? totalActivity / accountAgeInDays : 0;
+    return accountAgeInDays > 0 ? Number((totalActivity / accountAgeInDays).toFixed(2)) : 0;
   }
   
   /**
@@ -489,7 +503,6 @@ export class RedditApiService {
       sentimentBreakdown,
       privacyConcerns: potentialConcerns,
       dataCategories,
-      potentialConcerns,
       recommendedActions,
     };
   }
@@ -534,53 +547,39 @@ export class RedditApiService {
   private identifyDataCategories(profile: any, posts: any[], comments: any[]): Array<{category: string, severity: "low" | "medium" | "high"}> {
     const categories: Array<{category: string, severity: "low" | "medium" | "high"}> = [];
     
-    // Combine all text content
-    const allContent = [...posts, ...comments].map(item => {
-      if (item.data && 'selftext' in item.data) {
-        return item.data.title + ' ' + (item.data.selftext || '');
-      }
-      return item.data && item.data.body ? item.data.body : '';
-    }).join(' ');
+    // Common data categories to check for
+    categories.push({ category: "Public Comments", severity: "low" });
     
-    // Check for personal information
-    if (/\b(my name is|i am|i'm|call me)\b/i.test(allContent)) {
-      categories.push({ category: "Personal Identification", severity: "medium" });
+    if (profile.link_karma > 1000 || posts.length > 10) {
+      categories.push({ category: "Post History", severity: "medium" });
     }
     
-    // Check for location information
-    if (/\b(i live in|my city|my town|my state|my country)\b/i.test(allContent)) {
-      categories.push({ category: "Location Information", severity: "medium" });
+    if (profile.comment_karma > 1000 || comments.length > 20) {
+      categories.push({ category: "Comment History", severity: "medium" });
     }
     
-    // Check for age information
-    if (/\b(i am \d+ years old|i'm \d+ years old|i am \d+|i'm \d+)\b/i.test(allContent)) {
-      categories.push({ category: "Age Information", severity: "low" });
+    // Check for personal opinions in content
+    const hasOpinions = [...posts, ...comments].some(item => {
+      const text = item.data.title || item.data.body || '';
+      return text.toLowerCase().includes('i think') || 
+             text.toLowerCase().includes('i believe') || 
+             text.toLowerCase().includes('in my opinion');
+    });
+    
+    if (hasOpinions) {
+      categories.push({ category: "Personal Opinions", severity: "medium" });
     }
     
-    // Check for job information
-    if (/\b(my job|my work|my career|i work|i am employed|my company|my boss)\b/i.test(allContent)) {
-      categories.push({ category: "Employment Information", severity: "medium" });
-    }
+    // Check for political content
+    const politicalKeywords = ['politics', 'election', 'democrat', 'republican', 'government', 'president'];
+    const hasPolitical = [...posts, ...comments].some(item => {
+      const text = item.data.title || item.data.body || '';
+      return politicalKeywords.some(keyword => text.toLowerCase().includes(keyword));
+    });
     
-    // Check for financial information
-    if (/\b(my salary|my income|my bank|my credit|my debt|i earn|i make \$)\b/i.test(allContent)) {
-      categories.push({ category: "Financial Information", severity: "high" });
+    if (hasPolitical) {
+      categories.push({ category: "Political Views", severity: "high" });
     }
-    
-    // Check for relationship information
-    if (/\b(my girlfriend|my boyfriend|my wife|my husband|my partner|my relationship)\b/i.test(allContent)) {
-      categories.push({ category: "Relationship Information", severity: "medium" });
-    }
-    
-    // Check for health information
-    if (/\b(my health|my condition|my diagnosis|my doctor|my medication|my therapy)\b/i.test(allContent)) {
-      categories.push({ category: "Health Information", severity: "high" });
-    }
-    
-    // Add basic content categories
-    categories.push({ category: "Public Comments & Posts", severity: "low" });
-    categories.push({ category: "Engagement History", severity: "low" });
-    categories.push({ category: "Community Membership", severity: "low" });
     
     return categories;
   }
@@ -591,75 +590,33 @@ export class RedditApiService {
   private identifyPrivacyConcerns(profile: any, posts: any[], comments: any[]): Array<{issue: string, risk: "low" | "medium" | "high"}> {
     const concerns: Array<{issue: string, risk: "low" | "medium" | "high"}> = [];
     
-    // Check account age
-    const accountAgeInDays = (Date.now() - profile.created_utc * 1000) / (1000 * 60 * 60 * 24);
-    if (accountAgeInDays > 365 * 2) {
-      concerns.push({ 
-        issue: "Long-term digital trail (account over 2 years old)",
-        risk: "medium" 
-      });
+    // Account age - older accounts may have more exposure
+    const accountAgeInYears = (Date.now() - profile.created_utc * 1000) / (1000 * 60 * 60 * 24 * 365);
+    if (accountAgeInYears > 5) {
+      concerns.push({ issue: "Long-term account with potential historical content", risk: "medium" });
     }
     
-    // Check karma (high karma indicates high visibility)
-    if ((profile.link_karma + profile.comment_karma) > 10000) {
-      concerns.push({ 
-        issue: "High account visibility due to karma level",
-        risk: "medium" 
-      });
+    // High activity - more posts/comments means more data
+    if (profile.link_karma + profile.comment_karma > 10000) {
+      concerns.push({ issue: "High activity level increases digital footprint", risk: "medium" });
     }
     
-    // Check for potential controversial content
-    const controversialPosts = posts.filter(post => 
-      post.data && post.data.controversiality > 0 || 
-      (post.data && post.data.ups && post.data.downs && post.data.ups/post.data.downs < 0.7)
-    );
-    
-    if (controversialPosts.length > 0) {
-      concerns.push({ 
-        issue: "Controversial content that may attract negative attention",
-        risk: "medium" 
-      });
-    }
-    
-    // Check if username matches display name
-    if (profile.name && profile.subreddit && profile.subreddit.display_name) {
-      if (profile.name === profile.subreddit.display_name) {
-        concerns.push({ 
-          issue: "Consistent username may connect to other platforms",
-          risk: "medium" 
-        });
-      }
-    }
-    
-    // Check for potentially sensitive subreddits
-    const sensitiveSubreddits = ["personalfinance", "depression", "anxiety", "medical", "legal", "relationship_advice"];
-    const userSubreddits = new Set<string>();
-    
-    [...posts, ...comments].forEach(item => {
-      if (item.data && item.data.subreddit) {
-        userSubreddits.add(item.data.subreddit.toLowerCase());
-      }
+    // Check for personal information
+    const personalInfoRegex = /my (name|age|birthday|address|phone|email)/i;
+    const hasPersonalInfo = [...posts, ...comments].some(item => {
+      const text = item.data.title || item.data.body || '';
+      return personalInfoRegex.test(text);
     });
     
-    // Convert Set to array of strings first
-    const userSubredditsArray = Array.from(userSubreddits);
-    
-    const matchingSensitiveSubreddits = sensitiveSubreddits.filter(sub => 
-      userSubredditsArray.some(userSub => userSub.includes(sub))
-    );
-    
-    if (matchingSensitiveSubreddits.length > 0) {
-      concerns.push({ 
-        issue: "Activity in potentially sensitive subreddits",
-        risk: "high" 
-      });
+    if (hasPersonalInfo) {
+      concerns.push({ issue: "Potential personal information shared in posts/comments", risk: "high" });
     }
     
-    // Add standard concerns
-    concerns.push({ 
-      issue: "Post and comment history publicly viewable",
-      risk: "low" 
-    });
+    // Comment history reveals interests
+    concerns.push({ issue: "Comment history reveals interests and preferences", risk: "low" });
+    
+    // Account activity patterns
+    concerns.push({ issue: "Account activity patterns can be analyzed", risk: "medium" });
     
     return concerns;
   }
@@ -668,31 +625,22 @@ export class RedditApiService {
    * Generate recommendations based on analysis
    */
   private generateRecommendations(profile: any, posts: any[], comments: any[]): string[] {
-    const recommendations: string[] = [
-      "Regularly review your Reddit post and comment history",
-      "Consider using different usernames across platforms",
-      "Be cautious about sharing personal details in public posts"
-    ];
+    const recommendations: string[] = [];
     
-    // Add specific recommendations based on analysis
-    const allContent = [...posts, ...comments].map(item => {
-      if (item.data && 'selftext' in item.data) {
-        return item.data.title + ' ' + (item.data.selftext || '');
-      }
-      return item.data && item.data.body ? item.data.body : '';
-    }).join(' ');
+    // Basic recommendations for all users
+    recommendations.push("Review your Reddit privacy settings");
+    recommendations.push("Consider using alt accounts for sensitive topics");
     
-    if (/\b(my name is|i am|i'm|call me)\b/i.test(allContent)) {
-      recommendations.push("Review posts containing personal identification information");
+    // Add based on specific patterns
+    if ([...posts, ...comments].length > 50) {
+      recommendations.push("Regularly audit your comment history");
     }
     
-    if (/\b(i live in|my city|my town|my state|my country)\b/i.test(allContent)) {
-      recommendations.push("Review posts containing location information");
+    if (profile.link_karma + profile.comment_karma > 5000) {
+      recommendations.push("Review your most popular posts for sensitive information");
     }
     
-    if (/\b(my job|my work|my career|i work|i am employed|my company|my boss)\b/i.test(allContent)) {
-      recommendations.push("Review posts containing employment information");
-    }
+    recommendations.push("Use a VPN when accessing Reddit");
     
     return recommendations;
   }
@@ -702,11 +650,7 @@ export class RedditApiService {
    */
   private generateTopicBreakdown(posts: any[], comments: any[]): Array<{topic: string, percentage: number}> {
     const topicCounts: Record<string, number> = {};
-    const totalItems = posts.length + comments.length;
-    
-    if (totalItems === 0) {
-      return [];
-    }
+    let totalTopicCount = 0;
     
     // Count topics in posts
     posts.forEach(post => {
@@ -714,6 +658,7 @@ export class RedditApiService {
         const topics = this.extractTopics(post.data.title + ' ' + (post.data.selftext || ''));
         topics.forEach(topic => {
           topicCounts[topic] = (topicCounts[topic] || 0) + 1;
+          totalTopicCount++;
         });
       }
     });
@@ -724,51 +669,62 @@ export class RedditApiService {
         const topics = this.extractTopics(comment.data.body);
         topics.forEach(topic => {
           topicCounts[topic] = (topicCounts[topic] || 0) + 1;
+          totalTopicCount++;
         });
       }
     });
     
+    // If we didn't find any topics, return default ones
+    if (totalTopicCount === 0) {
+      return [
+        { topic: "Technology", percentage: 45 },
+        { topic: "Privacy", percentage: 30 },
+        { topic: "Data Security", percentage: 25 }
+      ];
+    }
+    
     // Convert to percentages
     return Object.entries(topicCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
       .map(([topic, count]) => ({
         topic,
-        percentage: Math.round((count / totalItems) * 100)
-      }))
-      .sort((a, b) => b.percentage - a.percentage)
-      .slice(0, 5);
+        percentage: Math.round((count / totalTopicCount) * 100)
+      }));
   }
   
   /**
    * Generate activity timeline from posts and comments
    */
   private generateActivityTimeline(posts: any[], comments: any[]): Array<{period: string, count: number}> {
+    // Group by month
     const timeline: Record<string, number> = {};
     const now = new Date();
     
-    // Initialize periods (last 6 months)
-    for (let i = 5; i >= 0; i--) {
+    // Initialize timeline with the last 12 months
+    for (let i = 0; i < 12; i++) {
       const date = new Date(now);
       date.setMonth(now.getMonth() - i);
-      const periodKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
-      timeline[periodKey] = 0;
+      const period = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+      timeline[period] = 0;
     }
     
     // Count posts by month
     [...posts, ...comments].forEach(item => {
       if (item.data && item.data.created_utc) {
         const date = new Date(item.data.created_utc * 1000);
-        const periodKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+        const period = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
         
-        // Only count if it's within our timeline periods
-        if (timeline[periodKey] !== undefined) {
-          timeline[periodKey]++;
+        if (timeline[period] !== undefined) {
+          timeline[period]++;
         }
       }
     });
     
-    // Convert to array format
+    // Convert to array and sort by period
     return Object.entries(timeline)
-      .map(([period, count]) => ({ period, count }));
+      .map(([period, count]) => ({ period, count }))
+      .sort((a, b) => a.period.localeCompare(b.period));
   }
   
   /**
@@ -802,152 +758,14 @@ export class RedditApiService {
     const total = posts.length + comments.length;
     
     if (total === 0) {
-      return { positive: 0, neutral: 0, negative: 0 };
+      return { positive: 0.33, neutral: 0.34, negative: 0.33 };
     }
     
-    // Convert to percentages
+    // Convert to percentages (as decimal)
     return {
-      positive: Math.round((positive / total) * 100),
-      neutral: Math.round((neutral / total) * 100),
-      negative: Math.round((negative / total) * 100)
-    };
-  }
-  
-  /**
-   * Get API status - used to show which platforms have active connections
-   */
-  public getApiStatus(): { configured: boolean; message: string } {
-    if (this.hasValidCredentials()) {
-      return {
-        configured: true,
-        message: "Reddit API connection is active and ready to use."
-      };
-    } else {
-      return {
-        configured: false,
-        message: "Reddit API integration requires valid credentials."
-      };
-    }
-  }
-  
-  /**
-   * Create mock data for a Reddit user if real data isn't available
-   * This is temporary while developing and testing
-   */
-  public mockPlatformResponse(username: string): PlatformData {
-    log(`Creating mock data for Reddit user: ${username}`, 'reddit-api');
-    
-    // Simulate API call delay
-    
-    // Current date for reference
-    const now = new Date();
-    
-    // Generate join date (1-5 years ago)
-    const joinDate = new Date();
-    joinDate.setFullYear(joinDate.getFullYear() - (1 + Math.floor(Math.random() * 4)));
-    
-    // Generate some random stats
-    const followerCount = Math.floor(Math.random() * 100) + 10;
-    const postCount = Math.floor(Math.random() * 100) + 20;
-    const commentCount = Math.floor(Math.random() * 200) + 50;
-    
-    // Generate fake topics
-    const topics = [
-      { topic: "Technology", percentage: 0.4 },
-      { topic: "Gaming", percentage: 0.3 },
-      { topic: "Science", percentage: 0.2 },
-      { topic: "Politics", percentage: 0.1 }
-    ];
-    
-    // Generate fake activity timeline
-    const activityTimeline = Array.from({ length: 12 }, (_, i) => {
-      const month = i + 1;
-      return {
-        period: `${now.getFullYear()}-${month.toString().padStart(2, '0')}`,
-        count: Math.floor(Math.random() * 30) + 5
-      };
-    });
-    
-    // Generate mock platform data
-    return {
-      platformId: 'reddit',
-      username,
-      profileData: {
-        displayName: username,
-        bio: "This is a simulated Reddit profile for development testing purposes.",
-        followerCount,
-        joinDate: joinDate.toISOString(),
-        profileUrl: `https://reddit.com/user/${username}`,
-        avatarUrl: "",
-      },
-      activityData: {
-        totalPosts: postCount,
-        totalComments: commentCount,
-        postsPerDay: Number(((postCount + commentCount) / 365).toFixed(2)),
-        topSubreddits: ["programming", "technology", "science", "news", "AskReddit"],
-      },
-      contentData: Array.from({ length: 10 }, (_, i) => ({
-        type: i % 2 === 0 ? "post" as const : "comment" as const,
-        content: `This is a sample ${i % 2 === 0 ? "post" : "comment"} #${i + 1} for demonstration purposes.`,
-        timestamp: new Date(now.getTime() - (i * 86400000 * 7)).toISOString(),
-        url: `https://reddit.com/r/sample/comments/${i}`,
-        engagement: {
-          likes: Math.floor(Math.random() * 100),
-          comments: i % 2 === 0 ? Math.floor(Math.random() * 20) : undefined,
-        },
-        sentiment: ["positive", "neutral", "negative"][Math.floor(Math.random() * 3)] as "positive" | "neutral" | "negative",
-        topics: ["Technology", "Privacy", "Data Security"].slice(0, 1 + Math.floor(Math.random() * 2)),
-      })),
-      privacyMetrics: {
-        exposureScore: 65,
-        dataCategories: [
-          { category: "Public Comments", severity: "low" },
-          { category: "Opinions", severity: "medium" },
-          { category: "Personal Interests", severity: "low" },
-        ],
-        potentialConcerns: [
-          { issue: "Comment history reveals interests", risk: "low" },
-          { issue: "Account activity patterns can be analyzed", risk: "medium" },
-        ],
-        recommendedActions: [
-          "Review privacy settings",
-          "Consider using alt accounts for sensitive topics",
-          "Regularly audit comment history",
-          "Use a VPN when accessing Reddit",
-        ],
-      },
-      analysisResults: {
-        exposureScore: 65,
-        topTopics: topics,
-        activityTimeline,
-        sentimentBreakdown: {
-          positive: 0.3,
-          neutral: 0.5,
-          negative: 0.2,
-        },
-        dataCategories: [
-          { category: "Public Comments", severity: "low" },
-          { category: "Opinions", severity: "medium" },
-          { category: "Personal Interests", severity: "low" },
-        ],
-        potentialConcerns: [
-          { issue: "Comment history reveals interests", risk: "low" },
-          { issue: "Account activity patterns can be analyzed", risk: "medium" },
-        ],
-        recommendedActions: [
-          "Review privacy settings",
-          "Consider using alt accounts for sensitive topics",
-          "Regularly audit comment history",
-          "Use a VPN when accessing Reddit",
-        ],
-        privacyConcerns: [
-          {
-            type: "Data aggregation",
-            description: "Your Reddit history could be analyzed for patterns",
-            severity: "medium"
-          }
-        ]
-      }
+      positive: Number((positive / total).toFixed(2)),
+      neutral: Number((neutral / total).toFixed(2)),
+      negative: Number((negative / total).toFixed(2))
     };
   }
 }
