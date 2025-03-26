@@ -705,6 +705,43 @@ export class RedditApiService {
    * Generate topic breakdown from posts and comments
    */
   private generateTopicBreakdown(posts: any[], comments: any[]): Array<{topic: string, percentage: number}> {
+    // First, try to get the subreddit distribution as topics
+    const subredditCounts: Record<string, number> = {};
+    let totalSubredditCount = 0;
+    
+    // Count subreddits in posts
+    posts.forEach(post => {
+      if (post.data && post.data.subreddit) {
+        const subreddit = post.data.subreddit;
+        subredditCounts[subreddit] = (subredditCounts[subreddit] || 0) + 1;
+        totalSubredditCount++;
+      }
+    });
+    
+    // Count subreddits in comments
+    comments.forEach(comment => {
+      if (comment.data && comment.data.subreddit) {
+        const subreddit = comment.data.subreddit;
+        subredditCounts[subreddit] = (subredditCounts[subreddit] || 0) + 1;
+        totalSubredditCount++;
+      }
+    });
+    
+    // If we have subreddit data, use that as our topics
+    if (totalSubredditCount > 0) {
+      console.log(`[DEBUG REDDIT API] Found ${Object.keys(subredditCounts).length} subreddits in user data`);
+      
+      // Convert to percentage and sort
+      return Object.entries(subredditCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([topic, count]) => ({
+          topic,
+          percentage: Math.round((count / totalSubredditCount) * 100)
+        }));
+    }
+    
+    // Fallback to content-based topic extraction if no subreddit data
     const topicCounts: Record<string, number> = {};
     let totalTopicCount = 0;
     
@@ -730,7 +767,7 @@ export class RedditApiService {
       }
     });
     
-    // If we didn't find any topics, return default ones
+    // If we still didn't find any topics, return default ones
     if (totalTopicCount === 0) {
       return [
         { topic: "Technology", percentage: 45 },
@@ -739,7 +776,7 @@ export class RedditApiService {
       ];
     }
     
-    // Convert to percentages
+    // Convert to percentage and sort
     return Object.entries(topicCounts)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
