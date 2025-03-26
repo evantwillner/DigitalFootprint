@@ -700,6 +700,132 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
           </Card>
         </div>
       )}
+      
+      {/* Sentiment Analysis Section */}
+      <div className="mb-8">
+        <h3 className="text-lg font-medium mb-4">
+          {primaryPlatform ? `${PLATFORM_CONFIG[primaryPlatform as Platform].name} Sentiment Analysis` : "Sentiment Analysis"}
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card>
+            <CardContent className="pt-6">
+              <h4 className="text-base font-medium text-gray-700 mb-4">Content Sentiment Distribution</h4>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={sentimentData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      outerRadius={80}
+                      dataKey="value"
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    >
+                      <Cell fill="#10b981" /> {/* Positive: green */}
+                      <Cell fill="#6b7280" /> {/* Neutral: gray */}
+                      <Cell fill="#ef4444" /> {/* Negative: red */}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="pt-6">
+              <h4 className="text-base font-medium text-gray-700 mb-4">Emotional Tone Analysis</h4>
+              
+              {redditData?.analysisResults?.sentimentBreakdown?.emotions ? (
+                // Display emotional breakdown if available from our enhanced analysis
+                <div>
+                  <p className="mb-3 text-sm text-gray-600">
+                    Our advanced analysis detected these emotional tones in your content:
+                  </p>
+                  
+                  {redditData.analysisResults.sentimentBreakdown.topEmotions && 
+                   redditData.analysisResults.sentimentBreakdown.topEmotions.length > 0 ? (
+                    <div className="space-y-2">
+                      {redditData.analysisResults.sentimentBreakdown.topEmotions.map((emotion, index) => (
+                        <div key={index} className="flex flex-col">
+                          <div className="flex justify-between mb-1">
+                            <span className="text-sm font-medium">{emotion.emotion}</span>
+                            <span className="text-sm text-gray-600">{emotion.percentage}%</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2.5">
+                            <div 
+                              className={`h-2.5 rounded-full ${
+                                emotion.emotion === 'Joy' ? 'bg-green-500' : 
+                                emotion.emotion === 'Sadness' ? 'bg-blue-500' :
+                                emotion.emotion === 'Anger' ? 'bg-red-500' :
+                                emotion.emotion === 'Fear' ? 'bg-purple-500' :
+                                'bg-amber-500'
+                              }`}
+                              style={{ width: `${emotion.percentage}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-gray-500 italic">Emotional tone analysis not available for this content.</p>
+                  )}
+                  
+                  {redditData.analysisResults.sentimentBreakdown.contentSamples && 
+                   redditData.analysisResults.sentimentBreakdown.contentSamples.length > 0 && (
+                    <div className="mt-4">
+                      <h5 className="text-sm font-medium mb-2">Content Sample</h5>
+                      <div className="bg-gray-50 p-3 rounded text-sm italic text-gray-600 border-l-4 border-primary">
+                        "{redditData.analysisResults.sentimentBreakdown.contentSamples[0].text}"
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                // Default if no enhanced emotional analysis available
+                <div className="space-y-4">
+                  <p className="text-gray-600">
+                    Analysis shows your content has a {sentimentData[0].value > 40 ? 'generally positive' : 
+                      sentimentData[2].value > 40 ? 'generally negative' : 'mostly neutral'} tone.
+                  </p>
+                  <div className="flex flex-col space-y-3">
+                    <div>
+                      <div className="flex justify-between mb-1">
+                        <span className="text-sm font-medium text-green-600">Positive Content</span>
+                        <span className="text-sm text-gray-600">{sentimentData[0].value}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2.5">
+                        <div className="bg-green-500 h-2.5 rounded-full" style={{ width: `${sentimentData[0].value}%` }}></div>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <div className="flex justify-between mb-1">
+                        <span className="text-sm font-medium text-gray-600">Neutral Content</span>
+                        <span className="text-sm text-gray-600">{sentimentData[1].value}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2.5">
+                        <div className="bg-gray-500 h-2.5 rounded-full" style={{ width: `${sentimentData[1].value}%` }}></div>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <div className="flex justify-between mb-1">
+                        <span className="text-sm font-medium text-red-600">Negative Content</span>
+                        <span className="text-sm text-gray-600">{sentimentData[2].value}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2.5">
+                        <div className="bg-red-500 h-2.5 rounded-full" style={{ width: `${sentimentData[2].value}%` }}></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <div>
