@@ -194,11 +194,16 @@ export const platformDataSchema = z.object({
       neutral: z.number(),
       negative: z.number(),
     }),
+    dataCategories: z.array(z.object({
+      category: z.string(),
+      severity: z.enum(["low", "medium", "high"]),
+    })).optional(),
     privacyConcerns: z.array(z.object({
       type: z.string(),
       description: z.string(),
       severity: z.enum(["low", "medium", "high"]),
     })),
+    recommendedActions: z.array(z.string()).optional(),
     platformSpecificMetrics: z.record(z.string(), z.any()).optional(),
   }).optional(),
 });

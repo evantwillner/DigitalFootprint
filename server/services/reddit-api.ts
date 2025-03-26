@@ -116,28 +116,6 @@ export class RedditApiService {
    * Create mock data for a Reddit user if real data isn't available
    * This is temporary while developing and testing
    */
-  public mockPlatformResponse(platform: 'reddit', username: string): PlatformData {
-    log(`Creating mock data for Reddit user: ${username}`, 'reddit-api');
-    
-    // Current date for reference
-    const now = new Date();
-    
-    // Generate join date (1-5 years ago)
-    const joinDate = new Date();
-    joinDate.setFullYear(joinDate.getFullYear() - (1 + Math.floor(Math.random() * 4)));
-    
-    // Generate some random stats
-    const followerCount = Math.floor(Math.random() * 100) + 10;
-    const postCount = Math.floor(Math.random() * 100) + 20;
-    const commentCount = Math.floor(Math.random() * 200) + 50;
-    
-    // Generate fake topics
-    const topics = [
-      { topic: "Technology", percentage: 0.4 },
-      { topic: "Gaming", percentage: 0.3 },
-      { topic: "Science", percentage: 0.2 },
-      { topic: "Politics", percentage: 0.1 }
-    ];
     
     // Generate fake activity timeline
     const activityTimeline = Array.from({ length: 12 }, (_, i) => {
@@ -835,13 +813,12 @@ export class RedditApiService {
       };
     }
   }
-}
-
+  
   /**
    * Create mock data for a Reddit user if real data isn't available
    * This is temporary while developing and testing
    */
-  mockPlatformResponse(platform: 'reddit', username: string): PlatformData {
+  public mockPlatformResponse(username: string): PlatformData {
     log(`Creating mock data for Reddit user: ${username}`, 'reddit-api');
     
     // Simulate API call delay

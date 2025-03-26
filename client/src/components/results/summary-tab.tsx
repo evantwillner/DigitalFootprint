@@ -107,12 +107,30 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
   }
 
   // Data for charts - use actual platform data if available
-  const timelineData = data.platformData[0]?.analysisResults?.activityTimeline?.map(item => ({
+  let redditData = null;
+  // Check if we have Reddit data specifically
+  for (const platform of data.platformData) {
+    if (platform.platformId === 'reddit') {
+      redditData = platform;
+      break;
+    }
+  }
+  
+  console.log("Found Reddit data:", redditData);
+  
+  // Use Reddit data if available, otherwise use first platform or generate fallback data
+  const platformToUse = redditData || data.platformData[0];
+  
+  console.log("Using platform data:", platformToUse);
+  console.log("Platform activity timeline:", platformToUse?.analysisResults?.activityTimeline);
+  console.log("Platform topics:", platformToUse?.analysisResults?.topTopics);
+  
+  const timelineData = platformToUse?.analysisResults?.activityTimeline?.map(item => ({
     name: item.period,
     value: item.count
   })) || generateTimelineData();
   
-  const topicData = data.platformData[0]?.analysisResults?.topTopics?.map(item => ({
+  const topicData = platformToUse?.analysisResults?.topTopics?.map(item => ({
     name: item.topic,
     value: item.percentage
   })) || generateTopicData();
