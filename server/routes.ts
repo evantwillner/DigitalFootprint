@@ -9,7 +9,7 @@ import {
   insertUserSchema,
   insertDeletionRequestSchema
 } from "@shared/schema";
-import { ZodError } from "zod";
+import { ZodError, z } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { login, logout, register, getCurrentUser } from "./auth";
 import { requireAuth, loadUser, requireOwnership } from "./middleware/auth";
@@ -141,6 +141,127 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(500).json({ 
         message: "Internal server error",
         error: "An unexpected error occurred while processing your deletion request."
+      });
+    }
+  });
+  
+  // Platform-specific deletion request schema
+  const platformDeletionSchema = z.object({
+    platform: platformEnum,
+    username: z.string().min(1, "Username is required"),
+    options: z.object({
+      deleteAll: z.boolean().optional().default(false),
+      deleteTweets: z.boolean().optional().default(false),
+      deleteComments: z.boolean().optional().default(false),
+      deleteLikes: z.boolean().optional().default(false)
+    })
+  });
+  
+  // Handle platform-specific deletion through integrated APIs
+  apiRouter.post("/platform-deletion", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = await storage.getUser(req.session!.userId!);
+      if (!user) {
+        return res.status(404).json({ 
+          message: "User not found",
+          error: "Your user account could not be verified." 
+        });
+      }
+      
+      // Validate the request data
+      const requestData = platformDeletionSchema.parse(req.body);
+      
+      // Check that the username matches the authenticated user or their OAuth-connected accounts
+      // In a real app, you would check the user's connected accounts here
+      
+      // Platform-specific handling
+      if (requestData.platform === 'twitter') {
+        // Import the Twitter API service (lazy loading to avoid circular dependency)
+        const { twitterApi } = await import('./services/twitter-api');
+        
+        // Process the deletion request
+        const result = await twitterApi.requestDataDeletion(
+          requestData.username,
+          requestData.options
+        );
+        
+        if (result.success) {
+          // Log the successful request to the database
+          const deletionRequest = await storage.createDeletionRequest({
+            userId: req.session!.userId!,
+            platforms: [requestData.platform],
+            status: 'in_progress',
+            details: {
+              requestType: 'platform_api',
+              username: requestData.username,
+              options: requestData.options,
+              requestId: result.requestId,
+              message: result.message,
+              requestedAt: new Date().toISOString()
+            }
+          });
+          
+          return res.status(200).json({
+            success: true,
+            message: result.message,
+            requestId: result.requestId,
+            deletionId: deletionRequest.id
+          });
+        } else {
+          return res.status(400).json({
+            success: false,
+            message: result.message
+          });
+        }
+      } else {
+        // For other platforms (to be implemented)
+        return res.status(400).json({
+          success: false,
+          message: `Deletion from ${requestData.platform} is not yet supported through our API integration`
+        });
+      }
+    } catch (err) {
+      if (err instanceof ZodError) {
+        return handleZodError(err, res);
+      }
+      
+      console.error("Platform deletion error:", err);
+      return res.status(500).json({
+        success: false,
+        message: "An error occurred while processing your deletion request"
+      });
+    }
+  });
+  
+  // Get status of connected platform APIs
+  apiRouter.get("/platform-api-status", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      // Lazy-load the Twitter API to avoid circular dependencies
+      const { twitterApi } = await import('./services/twitter-api');
+      
+      const status = {
+        twitter: {
+          configured: twitterApi.hasValidCredentials(),
+          message: twitterApi.hasValidCredentials() 
+            ? "Twitter API is properly configured" 
+            : "Twitter API requires credentials. Data will be simulated."
+        },
+        // Add other platforms as they're implemented
+        facebook: {
+          configured: false,
+          message: "Facebook API integration is coming soon"
+        },
+        instagram: {
+          configured: false,
+          message: "Instagram API integration is coming soon"
+        }
+      };
+      
+      return res.json(status);
+    } catch (err) {
+      console.error("Error checking API status:", err);
+      return res.status(500).json({
+        message: "Error checking API status"
       });
     }
   });

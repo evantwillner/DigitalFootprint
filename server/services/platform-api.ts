@@ -1,5 +1,7 @@
 import axios from 'axios';
 import { Platform, PlatformData } from '@shared/schema';
+import { twitterApi } from './twitter-api';
+import { log } from '../vite';
 
 /**
  * Platform API Service
@@ -16,7 +18,7 @@ class PlatformApiService {
   }
   
   private loadApiKeys() {
-    const supportedPlatforms = ['instagram', 'facebook', 'reddit', 'twitter', 'linkedin'] as const;
+    const supportedPlatforms = ['instagram', 'facebook', 'reddit', 'linkedin'] as const;
     type SupportedPlatform = typeof supportedPlatforms[number];
     
     supportedPlatforms.forEach(platform => {
@@ -26,8 +28,10 @@ class PlatformApiService {
       }
     });
     
+    // Twitter is handled by a dedicated service, so we don't need to load its API key here
+    
     // Log status of API keys for debugging
-    console.log(`API keys loaded for: ${Object.keys(this.apiKeys).join(', ') || 'none'}`);
+    log(`API keys loaded for: ${Object.keys(this.apiKeys).join(', ') || 'none'}`, 'platform-api');
   }
   
   /**
@@ -37,25 +41,30 @@ class PlatformApiService {
    * @returns Platform data or null if not found/accessible
    */
   public async fetchUserData(platform: Exclude<Platform, 'all'>, username: string): Promise<PlatformData | null> {
-    console.log(`Fetching data for ${username} on ${platform}`);
+    log(`Fetching data for ${username} on ${platform}`, 'platform-api');
     
     try {
       // First check if this is a platform we currently support
       const supportedPlatforms = ['instagram', 'facebook', 'reddit', 'twitter', 'linkedin'] as const;
       
       if (!supportedPlatforms.includes(platform as any)) {
-        console.log(`Platform ${platform} is not currently supported`);
+        log(`Platform ${platform} is not currently supported`, 'platform-api');
         return null;
       }
       
-      // Check if we have access to the platform API
+      // Twitter has its own dedicated API service
+      if (platform === 'twitter') {
+        return await twitterApi.fetchUserData(username);
+      }
+      
+      // For other platforms, check if we have access to their API
       if (this.apiKeys[platform]) {
         // In a production app, this would make the actual API call
-        console.log(`Using API key for ${platform} to fetch data for ${username}`);
+        log(`Using API key for ${platform} to fetch data for ${username}`, 'platform-api');
         return this.mockPlatformResponse(platform, username);
       } else {
         // Use simulation mode
-        console.log(`No API key for ${platform}, using simulated data for ${username}`);
+        log(`No API key for ${platform}, using simulated data for ${username}`, 'platform-api');
         return this.mockPlatformResponse(platform, username);
       }
     } catch (error) {

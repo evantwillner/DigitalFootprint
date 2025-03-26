@@ -9,6 +9,7 @@ import Search from "@/pages/search";
 import Results from "@/pages/results";
 import Pricing from "@/pages/pricing";
 import Deletion from "@/pages/deletion";
+import DeletionManagePage from "@/pages/deletion-manage";
 import Checkout from "@/pages/checkout";
 import Subscribe from "@/pages/subscribe";
 import PaymentSuccess from "@/pages/payment-success";
@@ -46,6 +47,7 @@ function Router() {
         <Route path="/results" component={Results} />
         <Route path="/pricing" component={Pricing} />
         <ProtectedRoute path="/deletion" component={Deletion} />
+        <ProtectedRoute path="/deletion-manage" component={DeletionManagePage} />
         <ProtectedRoute path="/checkout" component={Checkout} />
         <ProtectedRoute path="/subscribe" component={Subscribe} />
         <ProtectedRoute path="/payment-success" component={PaymentSuccess} />
