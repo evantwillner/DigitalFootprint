@@ -480,100 +480,156 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
         </Card>
       </div>
       
-      {redditData && (
+      {/* Platform-specific Account Details Section */}
+      {primaryPlatform && (
         <div className="mb-8">
-          <h3 className="text-lg font-medium mb-4">Reddit Account Details</h3>
+          <h3 className="text-lg font-medium mb-4">
+            {primaryPlatform ? `${PLATFORM_CONFIG[primaryPlatform as Platform].name} Account Details` : "Account Details"}
+          </h3>
           <Card>
             <CardContent className="pt-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div className="border rounded-lg p-4">
-                  <h4 className="text-sm font-medium text-gray-500 mb-1">Account Age</h4>
-                  <p className="text-xl font-semibold">{redditSpecificStats.accountAge}</p>
-                  <p className="text-sm text-gray-500 mt-1">Created on {redditSpecificStats.accountCreated}</p>
-                </div>
+              {/* Render platform-specific details using a factory pattern */}
+              {(() => {
+                // Reddit-specific account details
+                if (redditData) {
+                  return (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="border rounded-lg p-4">
+                          <h4 className="text-sm font-medium text-gray-500 mb-1">Account Age</h4>
+                          <p className="text-xl font-semibold">{redditSpecificStats.accountAge}</p>
+                          <p className="text-sm text-gray-500 mt-1">Created on {redditSpecificStats.accountCreated}</p>
+                        </div>
 
-                <div className="border rounded-lg p-4">
-                  <h4 className="text-sm font-medium text-gray-500 mb-1">Total Karma</h4>
-                  <p className="text-xl font-semibold">{redditSpecificStats.postKarma + redditSpecificStats.commentKarma}</p>
-                  <div className="flex text-sm text-gray-500 mt-1 justify-between">
-                    <span>Post: {redditSpecificStats.postKarma}</span>
-                    <span>Comment: {redditSpecificStats.commentKarma}</span>
-                  </div>
-                </div>
+                        <div className="border rounded-lg p-4">
+                          <h4 className="text-sm font-medium text-gray-500 mb-1">Total Karma</h4>
+                          <p className="text-xl font-semibold">{redditSpecificStats.postKarma + redditSpecificStats.commentKarma}</p>
+                          <div className="flex text-sm text-gray-500 mt-1 justify-between">
+                            <span>Post: {redditSpecificStats.postKarma}</span>
+                            <span>Comment: {redditSpecificStats.commentKarma}</span>
+                          </div>
+                        </div>
 
-                <div className="border rounded-lg p-4">
-                  <h4 className="text-sm font-medium text-gray-500 mb-1">Karma Per Year</h4>
-                  <p className="text-xl font-semibold">{redditSpecificStats.karmaPerYear}</p>
-                  <p className="text-sm text-gray-500 mt-1">Activity level: {
-                    redditSpecificStats.karmaPerYear > 5000 
-                      ? "Very High" 
-                      : redditSpecificStats.karmaPerYear > 1000 
-                        ? "High" 
-                        : redditSpecificStats.karmaPerYear > 200 
-                          ? "Moderate" 
-                          : "Low"
-                  }</p>
-                </div>
+                        <div className="border rounded-lg p-4">
+                          <h4 className="text-sm font-medium text-gray-500 mb-1">Karma Per Year</h4>
+                          <p className="text-xl font-semibold">{redditSpecificStats.karmaPerYear}</p>
+                          <p className="text-sm text-gray-500 mt-1">Activity level: {
+                            redditSpecificStats.karmaPerYear > 5000 
+                              ? "Very High" 
+                              : redditSpecificStats.karmaPerYear > 1000 
+                                ? "High" 
+                                : redditSpecificStats.karmaPerYear > 200 
+                                  ? "Moderate" 
+                                  : "Low"
+                          }</p>
+                        </div>
+                        
+                        <div className="border rounded-lg p-4">
+                          <h4 className="text-sm font-medium text-gray-500 mb-1">Post/Comment Ratio</h4>
+                          <p className="text-xl font-semibold">{redditSpecificStats.postToCommentRatio}:1</p>
+                          <p className="text-sm text-gray-500 mt-1">{
+                            redditSpecificStats.postToCommentRatio > 2 
+                              ? "Primarily a content creator" 
+                              : redditSpecificStats.postToCommentRatio > 0.5 
+                                ? "Balanced creator/commenter" 
+                                : "Primarily a commenter"
+                          }</p>
+                        </div>
+                        
+                        <div className="border rounded-lg p-4 md:col-span-2">
+                          <h4 className="text-sm font-medium text-gray-500 mb-1">Top Subreddits</h4>
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {redditSpecificStats.topSubreddits.length > 0 ? (
+                              redditSpecificStats.topSubreddits.map((subreddit, index) => (
+                                <span 
+                                  key={index} 
+                                  className="inline-block bg-gray-100 rounded-full px-3 py-1 text-sm font-medium text-gray-700"
+                                >
+                                  r/{subreddit}
+                                </span>
+                              ))
+                            ) : (
+                              <p className="text-gray-500">No subreddit data available</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {redditRecommendations.length > 0 && (
+                        <div className="mt-6 border-t pt-6">
+                          <h4 className="text-base font-medium text-gray-900 mb-3">Reddit-Specific Recommendations</h4>
+                          <ul className="space-y-2">
+                            {redditRecommendations.map((recommendation, index) => (
+                              <li key={index} className="flex items-start">
+                                <span className="mr-2 text-primary">
+                                  <svg 
+                                    xmlns="http://www.w3.org/2000/svg" 
+                                    width="18" 
+                                    height="18" 
+                                    viewBox="0 0 24 24" 
+                                    fill="none" 
+                                    stroke="currentColor" 
+                                    strokeWidth="2" 
+                                    strokeLinecap="round" 
+                                    strokeLinejoin="round"
+                                  >
+                                    <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
+                                    <path d="m9 12 2 2 4-4"/>
+                                  </svg>
+                                </span>
+                                <span className="text-gray-700">{recommendation}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </>
+                  );
+                }
                 
-                <div className="border rounded-lg p-4">
-                  <h4 className="text-sm font-medium text-gray-500 mb-1">Post/Comment Ratio</h4>
-                  <p className="text-xl font-semibold">{redditSpecificStats.postToCommentRatio}:1</p>
-                  <p className="text-sm text-gray-500 mt-1">{
-                    redditSpecificStats.postToCommentRatio > 2 
-                      ? "Primarily a content creator" 
-                      : redditSpecificStats.postToCommentRatio > 0.5 
-                        ? "Balanced creator/commenter" 
-                        : "Primarily a commenter"
-                  }</p>
-                </div>
+                // Twitter platform details - to be implemented when Twitter API integration is added
+                // This serves as a placeholder for future platform integrations
+                else if (primaryPlatform === "twitter") {
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {/* Twitter details would go here when implemented */}
+                      <div className="col-span-full text-center py-6 text-gray-500">
+                        <p>Twitter account details will be shown here when available.</p>
+                      </div>
+                    </div>
+                  );
+                }
                 
-                <div className="border rounded-lg p-4 md:col-span-2">
-                  <h4 className="text-sm font-medium text-gray-500 mb-1">Top Subreddits</h4>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {redditSpecificStats.topSubreddits.length > 0 ? (
-                      redditSpecificStats.topSubreddits.map((subreddit, index) => (
-                        <span 
-                          key={index} 
-                          className="inline-block bg-gray-100 rounded-full px-3 py-1 text-sm font-medium text-gray-700"
-                        >
-                          r/{subreddit}
-                        </span>
-                      ))
-                    ) : (
-                      <p className="text-gray-500">No subreddit data available</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-              
-              {redditRecommendations.length > 0 && (
-                <div className="mt-6 border-t pt-6">
-                  <h4 className="text-base font-medium text-gray-900 mb-3">Reddit-Specific Recommendations</h4>
-                  <ul className="space-y-2">
-                    {redditRecommendations.map((recommendation, index) => (
-                      <li key={index} className="flex items-start">
-                        <span className="mr-2 text-primary">
-                          <svg 
-                            xmlns="http://www.w3.org/2000/svg" 
-                            width="18" 
-                            height="18" 
-                            viewBox="0 0 24 24" 
-                            fill="none" 
-                            stroke="currentColor" 
-                            strokeWidth="2" 
-                            strokeLinecap="round" 
-                            strokeLinejoin="round"
-                          >
-                            <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
-                            <path d="m9 12 2 2 4-4"/>
-                          </svg>
-                        </span>
-                        <span className="text-gray-700">{recommendation}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+                // Generic platform details for any other platform
+                else {
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      <div className="border rounded-lg p-4">
+                        <h4 className="text-sm font-medium text-gray-500 mb-1">Platform</h4>
+                        <p className="text-xl font-semibold">{PLATFORM_CONFIG[primaryPlatform as Platform].name}</p>
+                      </div>
+                      
+                      <div className="border rounded-lg p-4">
+                        <h4 className="text-sm font-medium text-gray-500 mb-1">Username</h4>
+                        <p className="text-xl font-semibold">{data.username}</p>
+                      </div>
+                      
+                      {primaryPlatformData?.profileData?.joinDate && (
+                        <div className="border rounded-lg p-4">
+                          <h4 className="text-sm font-medium text-gray-500 mb-1">Account Created</h4>
+                          <p className="text-xl font-semibold">
+                            {new Date(primaryPlatformData.profileData.joinDate).toLocaleDateString(undefined, {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+              })()}
             </CardContent>
           </Card>
         </div>
