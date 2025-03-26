@@ -7,7 +7,13 @@ import { User } from '@shared/schema';
 // For typings in the express session
 declare global {
   namespace Express {
-    interface User extends User {}
+    // Extended Express User for the middleware
+    interface User {
+      id: number;
+      username: string;
+      email: string;
+      createdAt: Date;
+    }
   }
 }
 

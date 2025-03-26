@@ -11,8 +11,17 @@ import {
 } from "@shared/schema";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
+import { login, logout, register, getCurrentUser } from "./auth";
+import { requireAuth, loadUser, requireOwnership } from "./middleware/auth";
+import { setupSession, trackActivity } from "./middleware/session";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Set up session middleware
+  setupSession(app);
+  
+  // Apply user loading middleware
+  app.use(loadUser);
+  
   // API routes prefix
   const apiRouter = express.Router();
   app.use("/api", apiRouter);
@@ -69,18 +78,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Create deletion request (requires authentication)
-  apiRouter.post("/deletion-request", async (req: Request, res: Response) => {
+  apiRouter.post("/deletion-request", requireAuth, async (req: Request, res: Response) => {
     try {
-      // Production security: Ensure user is authenticated
-      if (!req.session?.userId) {
-        return res.status(401).json({ 
-          message: "Authentication required",
-          error: "You must be logged in to submit a deletion request." 
-        });
-      }
-      
       // Get the user to verify they exist and ownership
-      const user = await storage.getUser(req.session.userId);
+      const user = await storage.getUser(req.session!.userId!);
       if (!user) {
         return res.status(404).json({ 
           message: "User not found",
@@ -100,7 +101,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const deletionRequest = insertDeletionRequestSchema.parse({
         ...req.body,
         // Always use the session userId to prevent spoofing
-        userId: req.session.userId,
+        userId: req.session!.userId!,
         // Store detailed information for audit purposes
         details: { 
           reason: req.body.reason || "User requested deletion via authenticated session",
@@ -138,116 +139,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // User registration
-  apiRouter.post("/register", async (req: Request, res: Response) => {
-    try {
-      // Parse and validate user data
-      const userData = insertUserSchema.parse(req.body);
-      
-      // Check if username already exists
-      const existingUser = await storage.getUserByUsername(userData.username);
-      if (existingUser) {
-        return res.status(409).json({ message: "Username already exists" });
-      }
-      
-      // Create the user
-      const user = await storage.createUser(userData);
-      
-      // Set the user ID in session
-      if (req.session) {
-        req.session.userId = user.id;
-      }
-      
-      // Return user data (excluding password)
-      const { password, ...userWithoutPassword } = user;
-      return res.status(201).json(userWithoutPassword);
-    } catch (err) {
-      return handleZodError(err, res);
-    }
-  });
+  apiRouter.post("/register", register);
   
   // User login
-  apiRouter.post("/login", async (req: Request, res: Response) => {
-    try {
-      const { username, password } = req.body;
-      
-      if (!username || !password) {
-        return res.status(400).json({ message: "Username and password required" });
-      }
-      
-      // Find the user
-      const user = await storage.getUserByUsername(username);
-      
-      // Check if user exists and password matches
-      if (!user || user.password !== password) {
-        return res.status(401).json({ message: "Invalid username or password" });
-      }
-      
-      // Set the user ID in session
-      if (req.session) {
-        req.session.userId = user.id;
-      }
-      
-      // Return user data (excluding password)
-      const { password: _, ...userWithoutPassword } = user;
-      return res.json(userWithoutPassword);
-    } catch (err) {
-      console.error(err);
-      return res.status(500).json({ message: "Internal server error" });
-    }
-  });
+  apiRouter.post("/login", login);
   
   // User logout
-  apiRouter.post("/logout", (req: Request, res: Response) => {
-    if (req.session) {
-      req.session.destroy((err) => {
-        if (err) {
-          return res.status(500).json({ message: "Failed to logout" });
-        }
-        res.clearCookie("connect.sid");
-        return res.json({ message: "Logged out successfully" });
-      });
-    } else {
-      return res.json({ message: "No active session" });
-    }
-  });
+  apiRouter.post("/logout", logout);
   
   // Get current user (if authenticated)
-  apiRouter.get("/user", async (req: Request, res: Response) => {
-    try {
-      // Check if user is authenticated
-      if (!req.session?.userId) {
-        return res.status(401).json({ message: "Not authenticated" });
-      }
-      
-      // Get user data
-      const user = await storage.getUser(req.session.userId);
-      
-      if (!user) {
-        if (req.session) {
-          req.session.destroy(() => {});
-        }
-        return res.status(401).json({ message: "User not found" });
-      }
-      
-      // Return user data (excluding password)
-      const { password, ...userWithoutPassword } = user;
-      return res.json(userWithoutPassword);
-    } catch (err) {
-      console.error(err);
-      return res.status(500).json({ message: "Internal server error" });
-    }
-  });
+  apiRouter.get("/user", getCurrentUser);
   
   // Get search history for current user
-  apiRouter.get("/search-history", async (req: Request, res: Response) => {
+  apiRouter.get("/search-history", requireAuth, async (req: Request, res: Response) => {
     try {
-      // Check if user is authenticated
-      if (!req.session?.userId) {
-        return res.status(401).json({ message: "Authentication required" });
-      }
-      
       // Get search history
-      const history = await storage.getSearchHistoryByUser(req.session.userId);
+      const history = await storage.getSearchHistoryByUser(req.session!.userId!);
       
       return res.json(history);
     } catch (err) {
@@ -257,15 +164,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Get deletion requests for current user
-  apiRouter.get("/deletion-requests", async (req: Request, res: Response) => {
+  apiRouter.get("/deletion-requests", requireAuth, async (req: Request, res: Response) => {
     try {
-      // Check if user is authenticated
-      if (!req.session?.userId) {
-        return res.status(401).json({ message: "Authentication required" });
-      }
-      
       // Get deletion requests
-      const requests = await storage.getDeletionRequestsByUser(req.session.userId);
+      const requests = await storage.getDeletionRequestsByUser(req.session!.userId!);
       
       return res.json(requests);
     } catch (err) {
