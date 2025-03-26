@@ -14,6 +14,7 @@ import { fromZodError } from "zod-validation-error";
 import { login, logout, register, getCurrentUser } from "./auth";
 import { requireAuth, loadUser, requireOwnership } from "./middleware/auth";
 import { setupSession, trackActivity } from "./middleware/session";
+import Stripe from "stripe";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Set up session middleware

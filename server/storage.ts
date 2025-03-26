@@ -17,6 +17,9 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateStripeCustomerId(userId: number, customerId: string): Promise<User>;
+  updateStripeSubscriptionId(userId: number, subscriptionId: string): Promise<User>;
+  updateUserStripeInfo(userId: number, info: { customerId: string, subscriptionId: string }): Promise<User>;
   
   // Search history operations
   saveSearch(search: InsertSearchHistory): Promise<SearchHistory>;
@@ -87,9 +90,52 @@ export class MemStorage implements IStorage {
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = this.currentUserId++;
     const createdAt = new Date();
-    const user: User = { ...insertUser, id, createdAt };
+    const user: User = { 
+      ...insertUser, 
+      id, 
+      createdAt,
+      stripeCustomerId: null, 
+      stripeSubscriptionId: null 
+    };
     this.users.set(id, user);
     return user;
+  }
+  
+  async updateStripeCustomerId(userId: number, customerId: string): Promise<User> {
+    const user = await this.getUser(userId);
+    if (!user) {
+      throw new Error(`User with id ${userId} not found`);
+    }
+    
+    const updatedUser = { ...user, stripeCustomerId: customerId };
+    this.users.set(userId, updatedUser);
+    return updatedUser;
+  }
+  
+  async updateStripeSubscriptionId(userId: number, subscriptionId: string): Promise<User> {
+    const user = await this.getUser(userId);
+    if (!user) {
+      throw new Error(`User with id ${userId} not found`);
+    }
+    
+    const updatedUser = { ...user, stripeSubscriptionId: subscriptionId };
+    this.users.set(userId, updatedUser);
+    return updatedUser;
+  }
+  
+  async updateUserStripeInfo(userId: number, info: { customerId: string, subscriptionId: string }): Promise<User> {
+    const user = await this.getUser(userId);
+    if (!user) {
+      throw new Error(`User with id ${userId} not found`);
+    }
+    
+    const updatedUser = { 
+      ...user, 
+      stripeCustomerId: info.customerId,
+      stripeSubscriptionId: info.subscriptionId 
+    };
+    this.users.set(userId, updatedUser);
+    return updatedUser;
   }
   
   // Search history operations
