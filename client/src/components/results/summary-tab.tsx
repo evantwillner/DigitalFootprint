@@ -1,12 +1,59 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TabContentProps } from "@/lib/types";
+import { TabContentProps, InsightItem } from "@/lib/types";
 import { Platform } from "@shared/schema";
 import { PLATFORM_CONFIG } from "@/lib/platform-icons";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import { CHART_COLORS, generateTimelineData, generateTopicData } from "@/lib/chart-utils";
+
+// Reusable component for displaying insights from any platform
+interface InsightsDisplayProps {
+  insights: InsightItem[];
+  emptyMessage: string;
+}
+
+const InsightsDisplay = ({ insights, emptyMessage }: InsightsDisplayProps) => (
+  <ul className="space-y-2 text-gray-700">
+    {insights.length > 0 ? (
+      insights.map((insight, index) => (
+        <li key={index} className="flex items-start">
+          <span className={`mr-2 mt-0.5 ${insight.type === 'warning' ? 'text-warning' : 'text-primary'}`}>
+            <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              width="20" 
+              height="20" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+            >
+              {insight.type === 'warning' ? (
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              ) : (
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              )}
+              {insight.type === 'warning' ? (
+                <path d="M12 9v4" />
+              ) : (
+                <polyline points="9 11 12 14 22 4" />
+              )}
+              {insight.type === 'warning' && <path d="M12 16h.01" />}
+            </svg>
+          </span>
+          <span>{insight.insight}</span>
+        </li>
+      ))
+    ) : (
+      <li>
+        <p className="text-gray-500">{emptyMessage}</p>
+      </li>
+    )}
+  </ul>
+);
 
 // Summary stat card component
 const StatCard = ({ title, value, subValue, description, progress, additional }: { 
@@ -106,18 +153,27 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
     );
   }
 
-  // Data for charts - use actual platform data if available
-  let redditData = null;
-  // Check if we have Reddit data specifically
+  // Create a platform data map for easier access
+  const platformDataMap = new Map();
+  
+  // Populate the map with platform-specific data
   for (const platform of data.platformData) {
-    if (platform.platformId === 'reddit') {
-      redditData = platform;
-      break;
-    }
+    platformDataMap.set(platform.platformId, platform);
   }
   
-  // Use Reddit data if available, otherwise use first platform or generate fallback data
-  const platformToUse = redditData || data.platformData[0];
+  // Get available platforms (for extensibility)
+  const availablePlatforms = data.platformData.map(p => p.platformId as Platform);
+  
+  // Check for specific platforms - adding in a way that supports future expansion
+  const redditData = platformDataMap.get('reddit');
+  // Future expansion for other platforms would be:
+  // const twitterData = platformDataMap.get('twitter');
+  // const facebookData = platformDataMap.get('facebook');
+  // etc.
+  
+  // Use first available platform as default if needed
+  const primaryPlatform = availablePlatforms[0];
+  const primaryPlatformData = data.platformData[0];
   
   // Parse Reddit-specific stats
   let redditSpecificStats = {
@@ -163,12 +219,23 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
     redditSpecificStats.postKarma = redditData.activityData?.totalPosts || 0;
   }
   
+  // Define chart data types
+  interface TimelineChartData {
+    name: string;
+    value: number;
+  }
+  
+  interface TopicChartData {
+    name: string;
+    value: number;
+  }
+  
   // Generate Reddit timeline data using real subreddit data
-  let timelineData = [];
+  let timelineData: TimelineChartData[] = [];
   
   if (redditData?.analysisResults?.activityTimeline && redditData.analysisResults.activityTimeline.length > 0) {
     // Use real Reddit timeline data if available
-    timelineData = redditData.analysisResults.activityTimeline.map(item => ({
+    timelineData = redditData.analysisResults.activityTimeline.map((item: { period: string; count: number }) => ({
       name: item.period,
       value: item.count
     }));
@@ -198,11 +265,11 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
   }
   
   // Generate topic data from Reddit subreddits
-  let topicData = [];
+  let topicData: TopicChartData[] = [];
   
   if (redditData?.analysisResults?.topTopics && redditData.analysisResults.topTopics.length > 0) {
     // Use real Reddit topic data if available
-    topicData = redditData.analysisResults.topTopics.map(item => ({
+    topicData = redditData.analysisResults.topTopics.map((item: { topic: string; percentage: number }) => ({
       name: item.topic,
       value: item.percentage
     }));
@@ -331,93 +398,84 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        {/* Dynamic exposure score card that adapts to the platform */}
         <StatCard 
-          title="Reddit Exposure Score" 
+          title={`${primaryPlatform ? PLATFORM_CONFIG[primaryPlatform as Platform].name : "Platform"} Exposure Score`} 
           value={redditData?.analysisResults?.exposureScore || 0} 
           subValue="/ 100" 
           description={
-            (redditData?.analysisResults?.exposureScore || 0) > 75 
-              ? "High Reddit visibility" 
-              : (redditData?.analysisResults?.exposureScore || 0) > 50 
-                ? "Moderate-high Reddit visibility" 
-                : "Moderate Reddit visibility"
+            (() => {
+              const score = redditData?.analysisResults?.exposureScore || 0;
+              const platformName = primaryPlatform ? PLATFORM_CONFIG[primaryPlatform as Platform].name : "Platform";
+              
+              if (score > 75) return `High ${platformName} visibility`;
+              if (score > 50) return `Moderate-high ${platformName} visibility`;
+              return `Moderate ${platformName} visibility`;
+            })()
           }
           progress={redditData?.analysisResults?.exposureScore || 0}
         />
         
+        {/* Platform details card */}
         <StatCard 
           title="Platform Details" 
-          value="Reddit"
-          description="Analysis of your Reddit account"
-          additional={renderPlatformIcons(['reddit'] as Platform[])}
+          value={primaryPlatform ? PLATFORM_CONFIG[primaryPlatform as Platform].name : "Platform"}
+          description={`Analysis of your ${primaryPlatform ? PLATFORM_CONFIG[primaryPlatform as Platform].name : ""} account`}
+          additional={renderPlatformIcons(availablePlatforms as Platform[])}
         />
         
-        <StatCard 
-          title="Reddit Content" 
-          value={redditSpecificStats.postKarma + redditSpecificStats.commentKarma} 
-          subValue="total karma" 
-          description="Posts, comments, and interactions"
-          additional={
-            <div className="grid grid-cols-2 gap-1 text-center">
-              <div>
-                <p className="text-xs text-gray-600">Post Karma</p>
-                <p className="font-medium text-gray-800">{redditSpecificStats.postKarma}</p>
+        {/* Platform-specific content metrics */}
+        {redditData ? (
+          <StatCard 
+            title="Reddit Content" 
+            value={redditSpecificStats.postKarma + redditSpecificStats.commentKarma} 
+            subValue="total karma" 
+            description="Posts, comments, and interactions"
+            additional={
+              <div className="grid grid-cols-2 gap-1 text-center">
+                <div>
+                  <p className="text-xs text-gray-600">Post Karma</p>
+                  <p className="font-medium text-gray-800">{redditSpecificStats.postKarma}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-600">Comment Karma</p>
+                  <p className="font-medium text-gray-800">{redditSpecificStats.commentKarma}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-gray-600">Comment Karma</p>
-                <p className="font-medium text-gray-800">{redditSpecificStats.commentKarma}</p>
-              </div>
-            </div>
-          }
-        />
+            }
+          />
+        ) : (
+          <StatCard 
+            title="Content Summary" 
+            value={primaryPlatformData?.contentData?.length || 0} 
+            subValue="items" 
+            description="Total platform content"
+          />
+        )}
       </div>
       
       <div className="mb-8">
         <h3 className="text-lg font-medium mb-4">Digital Footprint Summary</h3>
         <Card>
           <CardContent className="pt-6">
+            {/* Platform-specific header text */}
             <p className="text-gray-700 mb-3">
-              Based on the analysis of <span className="font-medium">{data.username}</span>'s public Reddit activity, we've generated the following Reddit-specific insights:
+              Based on the analysis of <span className="font-medium">{data.username}</span>'s public 
+              {availablePlatforms.length === 1 
+                ? ` ${PLATFORM_CONFIG[availablePlatforms[0]].name} activity` 
+                : ` activity across ${availablePlatforms.length} platforms`}, 
+              we've generated the following insights:
             </p>
-            <ul className="space-y-2 text-gray-700">
-              {/* Only use Reddit-specific insights that we've dynamically generated */}
-              {redditInsights.length > 0 ? (
-                redditInsights.map((insight, index) => (
-                  <li key={index} className="flex items-start">
-                    <span className={`mr-2 mt-0.5 ${insight.type === 'warning' ? 'text-warning' : 'text-primary'}`}>
-                      <svg 
-                        xmlns="http://www.w3.org/2000/svg" 
-                        width="20" 
-                        height="20" 
-                        viewBox="0 0 24 24" 
-                        fill="none" 
-                        stroke="currentColor" 
-                        strokeWidth="2" 
-                        strokeLinecap="round" 
-                        strokeLinejoin="round"
-                      >
-                        {insight.type === 'warning' ? (
-                          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                        ) : (
-                          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                        )}
-                        {insight.type === 'warning' ? (
-                          <path d="M12 9v4" />
-                        ) : (
-                          <polyline points="9 11 12 14 22 4" />
-                        )}
-                        {insight.type === 'warning' && <path d="M12 16h.01" />}
-                      </svg>
-                    </span>
-                    <span>{insight.insight}</span>
-                  </li>
-                ))
-              ) : (
-                <li>
-                  <p className="text-gray-500">No insights available for this Reddit account.</p>
-                </li>
-              )}
-            </ul>
+
+            {/* Generalized insights component that can handle any platform */}
+            <InsightsDisplay 
+              insights={redditInsights} 
+              emptyMessage={`No insights available for this ${
+                availablePlatforms.length === 1 
+                  ? PLATFORM_CONFIG[availablePlatforms[0]].name 
+                  : 'account'
+              }.`} 
+            />
           </CardContent>
         </Card>
       </div>
@@ -523,7 +581,10 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <div>
-          <h3 className="text-lg font-medium mb-4">Reddit Activity Timeline</h3>
+          {/* Platform-agnostic activity timeline title */}
+          <h3 className="text-lg font-medium mb-4">
+            {primaryPlatform ? `${PLATFORM_CONFIG[primaryPlatform as Platform].name} Activity Timeline` : "Activity Timeline"}
+          </h3>
           <Card className="h-64">
             <CardContent className="p-4">
               {timelineData.length > 1 ? (
@@ -542,7 +603,13 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
                       axisLine={false}
                       width={30}
                     />
-                    <Tooltip formatter={(value) => [`${value} karma`, 'Activity']} />
+                    {/* Adaptive tooltip label based on platform */}
+                    <Tooltip 
+                      formatter={(value) => [
+                        `${value} ${primaryPlatform === 'reddit' ? 'karma' : 'activity'}`, 
+                        'Activity'
+                      ]} 
+                    />
                     <Bar 
                       dataKey="value" 
                       name="Activity"
@@ -554,7 +621,10 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
                 </ResponsiveContainer>
               ) : (
                 <div className="flex items-center justify-center h-full text-gray-500">
-                  Timeline data is generated from Reddit activity history
+                  {primaryPlatform 
+                    ? `Timeline data is generated from ${PLATFORM_CONFIG[primaryPlatform as Platform].name} activity history`
+                    : "Timeline data unavailable"
+                  }
                 </div>
               )}
             </CardContent>
@@ -562,7 +632,15 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
         </div>
         
         <div>
-          <h3 className="text-lg font-medium mb-4">Reddit Communities</h3>
+          {/* Platform-specific or generic communities/topics title */}
+          <h3 className="text-lg font-medium mb-4">
+            {redditData 
+              ? "Reddit Communities" 
+              : primaryPlatform 
+                ? `${PLATFORM_CONFIG[primaryPlatform as Platform].name} Topics` 
+                : "Content Topics"
+            }
+          </h3>
           <Card className="h-64">
             <CardContent className="p-4">
               {topicData.length > 1 && topicData[0].name !== "No topics found" ? (
@@ -576,9 +654,14 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
                       outerRadius={80}
                       dataKey="value"
                       nameKey="name"
-                      label={({ name, percent }) => `r/${name}: ${(percent * 100).toFixed(0)}%`}
+                      label={({ name, percent }: { name: string, percent: number }) => 
+                        // Adapt label format based on platform
+                        redditData 
+                          ? `r/${name}: ${(percent * 100).toFixed(0)}%` 
+                          : `${name}: ${(percent * 100).toFixed(0)}%`
+                      }
                     >
-                      {topicData.map((entry, index) => (
+                      {topicData.map((entry: TopicChartData, index: number) => (
                         <Cell 
                           key={`cell-${index}`} 
                           fill={CHART_COLORS[index % CHART_COLORS.length]} 
@@ -591,8 +674,13 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
               ) : (
                 <div className="flex items-center justify-center h-full text-gray-500">
                   {topicData[0].name === "No topics found" 
-                    ? "No subreddit activity data available" 
-                    : "Subreddit distribution is based on your Reddit activity"}
+                    ? redditData 
+                      ? "No subreddit activity data available"
+                      : `No topic data available for ${primaryPlatform ? PLATFORM_CONFIG[primaryPlatform as Platform].name : "this platform"}`
+                    : redditData
+                      ? "Subreddit distribution is based on your Reddit activity"
+                      : "Topic distribution is based on platform activity"
+                  }
                 </div>
               )}
             </CardContent>
