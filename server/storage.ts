@@ -6,6 +6,10 @@ import {
   Platform, PlatformData, DigitalFootprintResponse,
   subscriptionPlansData
 } from "@shared/schema";
+import session from 'express-session';
+import createMemoryStore from 'memorystore';
+
+const MemoryStore = createMemoryStore(session);
 
 // Interface for all storage operations
 export interface IStorage {
@@ -33,6 +37,9 @@ export interface IStorage {
   // Platform data operations
   fetchPlatformData(username: string, platform: Platform): Promise<PlatformData | null>;
   aggregateDigitalFootprint(username: string, platforms: Platform[]): Promise<DigitalFootprintResponse>;
+  
+  // Session store for express-session
+  sessionStore: any; // Using any for now to avoid type issues
 }
 
 // In-memory implementation of the storage interface
@@ -47,6 +54,8 @@ export class MemStorage implements IStorage {
   private currentFootprintId: number;
   private currentRequestId: number;
   
+  public sessionStore: any; // Memory-based session store
+  
   constructor() {
     this.users = new Map();
     this.searches = new Map();
@@ -57,6 +66,11 @@ export class MemStorage implements IStorage {
     this.currentSearchId = 1;
     this.currentFootprintId = 1;
     this.currentRequestId = 1;
+    
+    // Initialize the memory store for sessions
+    this.sessionStore = new MemoryStore({
+      checkPeriod: 86400000 // prune expired entries every 24h
+    });
   }
   
   // User operations
