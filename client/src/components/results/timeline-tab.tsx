@@ -242,8 +242,20 @@ export default function TimelineTab({ data, isLoading }: TabContentProps) {
               >
                 <defs>
                   <linearGradient id="colorActivity" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0.2} />
+                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.2} />
+                  </linearGradient>
+                  <linearGradient id="colorPositive" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.2} />
+                  </linearGradient>
+                  <linearGradient id="colorNeutral" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6b7280" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="#6b7280" stopOpacity={0.2} />
+                  </linearGradient>
+                  <linearGradient id="colorNegative" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="#f43f5e" stopOpacity={0.2} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -274,17 +286,17 @@ export default function TimelineTab({ data, isLoading }: TabContentProps) {
                 <Area 
                   type="monotone" 
                   dataKey="value" 
-                  stroke="hsl(var(--chart-1))" 
+                  stroke="#8b5cf6" 
                   fillOpacity={1}
                   fill="url(#colorActivity)" 
                   animationDuration={1000}
                   activeDot={{ 
                     r: 6,
-                    fill: "hsl(var(--primary))"
+                    fill: "#8b5cf6"
                   }}
                   dot={{
                     r: 4,
-                    fill: "hsl(var(--chart-1))"
+                    fill: "#8b5cf6"
                   }}
                 />
               </AreaChart>
@@ -390,7 +402,7 @@ export default function TimelineTab({ data, isLoading }: TabContentProps) {
                     <Bar 
                       dataKey="value" 
                       name="Count" 
-                      fill="hsl(var(--chart-2))" 
+                      fill="#f43f5e" 
                       animationDuration={800}
                       radius={[0, 4, 4, 0]} 
                     />

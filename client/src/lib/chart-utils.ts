@@ -114,13 +114,16 @@ export function generateEngagementData(): ChartData[] {
   ];
 }
 
-// Custom colors for charts
+// Custom colors for charts - using vibrant color palette
 export const CHART_COLORS = [
-  "hsl(var(--chart-1))", 
-  "hsl(var(--chart-2))", 
-  "hsl(var(--chart-3))", 
-  "hsl(var(--chart-4))", 
-  "hsl(var(--chart-5))"
+  "#8b5cf6", // Violet
+  "#f43f5e", // Rose
+  "#06b6d4", // Cyan
+  "#f59e0b", // Amber
+  "#10b981", // Emerald
+  "#ec4899", // Pink
+  "#3b82f6", // Blue
+  "#84cc16"  // Lime
 ];
 
 // Format large numbers (e.g., 1000 -> 1K)

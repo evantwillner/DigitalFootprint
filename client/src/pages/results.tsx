@@ -62,13 +62,15 @@ export default function Results() {
 
   return (
     <div className="max-w-4xl mx-auto fade-in">
-      <ResultsHeader
-        username={data?.username || "User"}
-        platformCount={data?.platforms.length || 0}
-        onExport={handleExport}
-        onShare={handleShare}
-        onPrint={handlePrint}
-      />
+      <div className="bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 py-6 px-4 rounded-lg mb-6">
+        <ResultsHeader
+          username={data?.username || "User"}
+          platformCount={data?.platforms.length || 0}
+          onExport={handleExport}
+          onShare={handleShare}
+          onPrint={handlePrint}
+        />
+      </div>
 
       {error ? (
         <Card>
@@ -87,16 +89,32 @@ export default function Results() {
         <>
           <ResultsTabs data={data} isLoading={isLoading} />
           
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 mb-8">
+          <div className="bg-gradient-to-r from-purple-100 to-blue-100 rounded-lg p-8 mb-8 shadow-sm">
             <div className="flex flex-col md:flex-row md:items-center justify-between">
               <div>
-                <h3 className="text-lg font-medium">Ready to clean your digital footprint?</h3>
-                <p className="text-gray-600 mt-1">
+                <h3 className="text-xl font-semibold bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-indigo-600">
+                  Ready to clean your digital footprint?
+                </h3>
+                <p className="text-gray-700 mt-2">
                   Our premium service can help you remove unwanted content and secure your online presence.
                 </p>
+                <div className="flex gap-3 mt-3">
+                  <div className="flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-500 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-sm">Privacy protection</span>
+                  </div>
+                  <div className="flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-500 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-sm">Content removal</span>
+                  </div>
+                </div>
               </div>
               <Button 
-                className="mt-4 md:mt-0 px-6 py-3 bg-[#10b981] hover:bg-[#0d9488]"
+                className="mt-6 md:mt-0 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-md hover:shadow-lg transition-all"
                 onClick={() => navigate("/pricing")}
               >
                 Explore Clean-up Options
