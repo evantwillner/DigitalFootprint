@@ -126,10 +126,8 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
   console.log("Platform activity timeline:", platformToUse?.analysisResults?.activityTimeline);
   console.log("Platform topics:", platformToUse?.analysisResults?.topTopics);
   
-  // Check Reddit credentials
-  console.log("Reddit credentials available:", 
-    !!process.env.REDDIT_CLIENT_ID && 
-    !!process.env.REDDIT_CLIENT_SECRET);
+  // We can't check Reddit credentials on the client side
+  // These are only available on the server
   
   const timelineData = platformToUse?.analysisResults?.activityTimeline?.map(item => ({
     name: item.period,
