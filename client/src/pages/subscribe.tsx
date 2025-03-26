@@ -92,7 +92,17 @@ export default function Subscribe() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  // Get plan name from URL search params
   const [planName, setPlanName] = useState("Pro Cleanup");
+  
+  useEffect(() => {
+    // Extract plan name from URL if available
+    const params = new URLSearchParams(window.location.search);
+    const planParam = params.get('plan');
+    if (planParam) {
+      setPlanName(planParam);
+    }
+  }, []);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -174,7 +184,7 @@ export default function Subscribe() {
   }
 
   // Set up Stripe Elements appearance
-  const appearance = {
+  const appearance: any = {
     theme: 'stripe',
     variables: {
       colorPrimary: '#0284c7',

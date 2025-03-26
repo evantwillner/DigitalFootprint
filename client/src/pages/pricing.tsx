@@ -2,21 +2,77 @@ import { useState } from "react";
 import { PAGE_TITLES, DELETION_TIERS } from "@/lib/constants";
 import PricingCard from "@/components/pricing/pricing-card";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
+import { useLocation } from "wouter";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 export default function Pricing() {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const [, navigate] = useLocation();
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+  const [showDialog, setShowDialog] = useState(false);
 
   const handleSelectPlan = (planName: string) => {
     setSelectedPlan(planName);
-    toast({
-      title: "Plan Selected",
-      description: `You've selected the ${planName} plan. This feature is coming soon!`,
-    });
+    
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in first to subscribe to a plan",
+        variant: "destructive",
+      });
+      navigate("/auth");
+      return;
+    }
+    
+    setShowDialog(true);
+  };
+
+  const handlePayment = (type: 'one-time' | 'subscription') => {
+    setShowDialog(false);
+    
+    if (type === 'one-time') {
+      navigate("/checkout");
+    } else {
+      // Pass the selected plan as a search param
+      navigate(`/subscribe?plan=${encodeURIComponent(selectedPlan || '')}`);
+    }
   };
 
   return (
     <div className="max-w-5xl mx-auto">
+      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Choose Payment Method</DialogTitle>
+            <DialogDescription>
+              You've selected the <strong>{selectedPlan}</strong> plan.
+              How would you like to proceed with payment?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              Choose a one-time payment for a single cleanup session, or subscribe for ongoing protection and regular cleanups.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => handlePayment('one-time')}
+            >
+              One-time Payment
+            </Button>
+            <Button
+              onClick={() => handlePayment('subscription')}
+            >
+              Monthly Subscription
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <section id="pricing-section" className="mb-12">
         <div className="text-center mb-8">
           <h1 className="text-2xl font-semibold mb-2">{PAGE_TITLES.pricing}</h1>

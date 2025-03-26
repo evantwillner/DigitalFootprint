@@ -281,21 +281,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.updateStripeCustomerId(user.id, customerId);
       }
       
+      // First create a product
+      const product = await stripe.products.create({
+        name: selectedPlan.name,
+        description: selectedPlan.description,
+      });
+      
+      // Create a price for the product
+      const price = await stripe.prices.create({
+        product: product.id,
+        unit_amount: selectedPlan.price * 100, // price in cents
+        currency: 'usd',
+        recurring: {
+          interval: 'month',
+        },
+      });
+      
       // Create the subscription
       const subscription = await stripe.subscriptions.create({
         customer: customerId,
         items: [{
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: selectedPlan.name,
-              description: selectedPlan.description,
-            },
-            unit_amount: selectedPlan.price * 100, // price in cents
-            recurring: {
-              interval: 'month',
-            },
-          },
+          price: price.id,
         }],
         payment_behavior: 'default_incomplete',
         expand: ['latest_invoice.payment_intent'],
