@@ -373,8 +373,12 @@ export class RedditApiService {
     const postFrequency = posts.length + comments.length;
     const postFrequencyScore = Math.min(100, postFrequency * 2);
     
-    const uniqueSubreddits = new Set();
-    [...posts, ...comments].forEach(item => uniqueSubreddits.add(item.data.subreddit));
+    const uniqueSubreddits = new Set<string>();
+    [...posts, ...comments].forEach(item => {
+      if (item.data && item.data.subreddit) {
+        uniqueSubreddits.add(item.data.subreddit);
+      }
+    });
     const subredditDiversityScore = Math.min(100, uniqueSubreddits.size * 5);
     
     // Calculate the final score (weighted average)
@@ -479,22 +483,33 @@ export class RedditApiService {
       });
     }
     
-    // Check for consistent username usage
-    if (profile.name === profile.username) {
-      concerns.push({ 
-        issue: "Consistent username may connect to other platforms",
-        risk: "medium" 
-      });
+    // Check if username matches display name
+    // Reddit API might not provide both name and username separately,
+    // so we check if we have appropriate properties before comparing
+    if (profile.name && profile.subreddit && profile.subreddit.display_name) {
+      if (profile.name === profile.subreddit.display_name) {
+        concerns.push({ 
+          issue: "Consistent username may connect to other platforms",
+          risk: "medium" 
+        });
+      }
     }
     
     // Check for potentially sensitive subreddits
     const sensitiveSubreddits = ["personalfinance", "depression", "anxiety", "medical", "legal", "relationship_advice"];
-    const userSubreddits = new Set();
+    const userSubreddits = new Set<string>();
     
-    [...posts, ...comments].forEach(item => userSubreddits.add(item.data.subreddit.toLowerCase()));
+    [...posts, ...comments].forEach(item => {
+      if (item.data && item.data.subreddit) {
+        userSubreddits.add(item.data.subreddit.toLowerCase());
+      }
+    });
+    
+    // Convert Set to array of strings first
+    const userSubredditsArray = Array.from(userSubreddits) as string[];
     
     const matchingSensitiveSubreddits = sensitiveSubreddits.filter(sub => 
-      Array.from(userSubreddits).some((userSub: string) => userSub.includes(sub))
+      userSubredditsArray.some(userSub => userSub.includes(sub))
     );
     
     if (matchingSensitiveSubreddits.length > 0) {
