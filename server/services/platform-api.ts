@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { Platform, PlatformData } from '@shared/schema';
 import { twitterApi } from './twitter-api';
+import { redditApi } from './reddit-api';
 import { log } from '../vite';
 
 /**
@@ -18,7 +19,7 @@ class PlatformApiService {
   }
   
   private loadApiKeys() {
-    const supportedPlatforms = ['instagram', 'facebook', 'reddit', 'linkedin'] as const;
+    const supportedPlatforms = ['instagram', 'facebook', 'linkedin'] as const;
     type SupportedPlatform = typeof supportedPlatforms[number];
     
     supportedPlatforms.forEach(platform => {
@@ -28,7 +29,7 @@ class PlatformApiService {
       }
     });
     
-    // Twitter is handled by a dedicated service, so we don't need to load its API key here
+    // Twitter and Reddit are handled by dedicated services
     
     // Log status of API keys for debugging
     log(`API keys loaded for: ${Object.keys(this.apiKeys).join(', ') || 'none'}`, 'platform-api');
@@ -52,9 +53,13 @@ class PlatformApiService {
         return null;
       }
       
-      // Twitter has its own dedicated API service
+      // Use platform-specific API services
       if (platform === 'twitter') {
         return await twitterApi.fetchUserData(username);
+      }
+      
+      if (platform === 'reddit') {
+        return await redditApi.fetchUserData(username);
       }
       
       // For other platforms, check if we have access to their API
