@@ -18,7 +18,6 @@ import { useLocation } from "wouter";
 // Form schema with validation rules
 const formSchema = z.object({
   username: z.string().min(1, "Username is required"),
-  platform: z.enum(["all", "instagram", "facebook", "reddit", "twitter", "linkedin"]),
 });
 
 type SearchFormValues = z.infer<typeof formSchema>;
@@ -33,7 +32,6 @@ export default function SearchForm() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       username: "",
-      platform: "all",
     },
   });
 
@@ -77,8 +75,8 @@ export default function SearchForm() {
 
   // Form submission handler
   const onSubmit = (values: SearchFormValues) => {
-    // Make sure we have at least one platform selected
-    const platforms = selectedPlatforms.length > 0 ? selectedPlatforms : [values.platform];
+    // Use the selected platforms from the platform cards
+    const platforms = selectedPlatforms;
     
     // Process username to handle platform-specific formats
     let username = values.username.trim();
@@ -115,60 +113,33 @@ export default function SearchForm() {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="md:col-span-2">
-            <FormField
-              control={form.control}
-              name="username"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Username</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Enter username to search"
-                      {...field}
-                      className="px-4 py-3"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                  <div className="text-xs text-gray-500 mt-1">
-                    For Reddit, you can enter username with or without the u/ prefix
-                  </div>
-                </FormItem>
-              )}
-            />
-          </div>
-          <div>
-            <FormField
-              control={form.control}
-              name="platform"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Platform</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger className="px-4 py-3">
-                        <SelectValue placeholder="Select platform" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {AVAILABLE_PLATFORMS.map(platform => (
-                        <SelectItem key={platform} value={platform}>
-                          {PLATFORM_CONFIG[platform].name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
+        {/* Centered username input */}
+        <div className="max-w-xl mx-auto">
+          <FormField
+            control={form.control}
+            name="username"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Username</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="Enter username to search"
+                    {...field}
+                    className="px-4 py-3"
+                  />
+                </FormControl>
+                <FormMessage />
+                <div className="text-xs text-gray-500 mt-1">
+                  For Reddit, you can enter username with or without the u/ prefix
+                </div>
+              </FormItem>
+            )}
+          />
         </div>
         
         <div className="pt-2">
           <h3 className="text-sm font-medium text-gray-700 mb-2">Select Platforms</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
             {/* Exclude "all" from the platform cards */}
             {AVAILABLE_PLATFORMS.filter(p => p !== "all").map(platform => (
               <PlatformCard
@@ -184,15 +155,16 @@ export default function SearchForm() {
           </div>
         </div>
         
-        <div className="flex items-center space-x-4">
+        {/* Centered buttons with enhanced styling */}
+        <div className="flex items-center justify-center space-x-4 mt-8">
           <Button 
             type="submit" 
-            className="px-6 py-3 flex items-center"
+            className="px-8 py-3 flex items-center text-base font-medium shadow-lg hover:shadow-xl transition-all duration-200 bg-gradient-to-r from-primary to-primary/80"
             disabled={searchMutation.isPending}
           >
             {searchMutation.isPending ? (
               <>
-                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
@@ -210,7 +182,7 @@ export default function SearchForm() {
                   strokeWidth="2" 
                   strokeLinecap="round" 
                   strokeLinejoin="round"
-                  className="mr-2 h-4 w-4"
+                  className="mr-2 h-5 w-5"
                 >
                   <circle cx="11" cy="11" r="8"/>
                   <path d="m21 21-4.3-4.3"/>
