@@ -68,18 +68,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Create deletion request (requires authentication)
+  // Create deletion request (demo mode: no authentication required)
   apiRouter.post("/deletion-request", async (req: Request, res: Response) => {
     try {
-      // Check if user is authenticated
-      if (!req.session?.userId) {
-        return res.status(401).json({ message: "Authentication required" });
-      }
+      // For demo purposes, we'll accept deletion requests without authentication
+      // In a production app, we would require authentication
       
       // Parse and validate the deletion request
       const deletionRequest = insertDeletionRequestSchema.parse({
         ...req.body,
-        userId: req.session.userId
+        userId: null, // Set to null for non-authenticated requests
+        details: { // Add required details field with reason
+          reason: "User requested deletion via form",
+          requestedAt: new Date().toISOString()
+        }
       });
       
       // Create the deletion request
