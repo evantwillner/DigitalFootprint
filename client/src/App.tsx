@@ -21,12 +21,7 @@ import { PageTransition, RouteChangeIndicator } from "@/components/ui/page-trans
 import { FullscreenLoader } from "@/components/ui/fullscreen-loader";
 import { useState, useEffect } from "react";
 
-// Test components
-import TestCharts from "@/components/visualization/TestCharts";
-import BasicChart from "@/components/visualization/BasicChart";
-import SimpleCharts from "@/components/visualization/SimpleCharts";
-import RedditVisualization from "@/components/visualization/RedditCharts";
-import RedditChartsBasic from "@/components/visualization/RedditChartsBasic";
+// Visualization components are imported in their respective feature components
 
 // Initial app loading animation
 function AppLoader() {
@@ -59,12 +54,7 @@ function Router() {
         <ProtectedRoute path="/subscribe" component={Subscribe} />
         <ProtectedRoute path="/payment-success" component={PaymentSuccess} />
         <ProtectedRoute path="/subscription-success" component={SubscriptionSuccess} />
-        {/* Test routes to verify charts work */}
-        <Route path="/test-charts" component={TestCharts} />
-        <Route path="/basic-chart" component={BasicChart} />
-        <Route path="/simple-charts" component={SimpleCharts} />
-        <Route path="/reddit-charts" component={RedditVisualization} />
-        <Route path="/reddit-basic" component={RedditChartsBasic} />
+        {/* Add any additional routes here */}
         <Route component={NotFound} />
       </Switch>
     </PageTransition>

@@ -5,9 +5,30 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, PieChart, Pie, Cell } from "recharts";
 import { CHART_COLORS, generateTimelineData } from "@/lib/chart-utils";
+import RedditActivityAnalysis from "@/components/visualization/RedditActivityAnalysis";
 
 export default function ActivityTab({ data, isLoading }: TabContentProps) {
   const [, setLocation] = useLocation();
+  
+  // Create a platform data map for easier access
+  const platformDataMap = new Map();
+  
+  // Populate the map with platform-specific data if data exists
+  if (data?.platformData) {
+    for (const platform of data.platformData) {
+      platformDataMap.set(platform.platformId, platform);
+    }
+  }
+  
+  // Get available platforms (for extensibility)
+  const availablePlatforms = data?.platformData?.map(p => p.platformId) || [];
+  
+  // Check for specific platforms
+  const redditData = platformDataMap.get('reddit');
+  // Future expansion for other platforms would be:
+  // const twitterData = platformDataMap.get('twitter');
+  // const facebookData = platformDataMap.get('facebook');
+  // etc.
   
   // Sample activity time distribution data
   const activityTimeData = [
@@ -17,7 +38,7 @@ export default function ActivityTab({ data, isLoading }: TabContentProps) {
   ];
   
   // Sample platform activity data
-  const platformActivityData = data?.platformData.map(platform => ({
+  const platformActivityData = data?.platformData?.map(platform => ({
     name: platform.platformId,
     posts: platform.activityData?.totalPosts || 0,
     comments: platform.activityData?.totalComments || 0,
@@ -281,6 +302,38 @@ export default function ActivityTab({ data, isLoading }: TabContentProps) {
           </li>
         </ul>
       </div>
+      
+      {/* Reddit-specific activity analysis section */}
+      {redditData && (
+        <div className="mb-8">
+          <div className="border-b border-gray-200 mb-6 pb-2">
+            <h3 className="text-xl font-semibold text-gray-800 flex items-center">
+              <svg 
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-orange-500 mr-2"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <path d="M18 13a6 6 0 0 1-6 5 6 6 0 0 1-6-5h12Z" />
+                <circle cx="9" cy="9" r="1" />
+                <circle cx="15" cy="9" r="1" />
+              </svg>
+              Reddit Activity Analysis
+            </h3>
+          </div>
+          <RedditActivityAnalysis 
+            platformData={redditData} 
+            isLoading={isLoading} 
+          />
+        </div>
+      )}
     </>
   );
 }

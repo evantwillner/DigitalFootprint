@@ -207,15 +207,25 @@ export default function RedditDataCharts({ platformData, isLoading }: RedditData
             <div>
               <h3 className="font-medium text-lg mb-2">Potential Privacy Concerns</h3>
               <ul className="list-disc list-inside space-y-2">
-                {platformData.analysisResults.privacyConcerns.map((concern, index) => (
-                  <li key={index} className={`${
-                    concern.risk === 'high' ? 'text-red-600' : 
-                    concern.risk === 'medium' ? 'text-amber-600' : 
-                    'text-blue-600'
-                  }`}>
-                    {concern.issue} ({concern.risk} risk)
-                  </li>
-                ))}
+                {platformData.analysisResults.privacyConcerns.map((concern: any, index) => {
+                  // Safely display the concern data regardless of format
+                  const severityText = concern.risk || concern.severity || "medium";
+                  const issueText = concern.issue || concern.type;
+                  const description = concern.description || "";
+                  
+                  // Set color based on severity level
+                  const textColorClass = 
+                    severityText === 'high' ? 'text-red-600' : 
+                    severityText === 'medium' ? 'text-amber-600' : 
+                    'text-blue-600';
+                  
+                  return (
+                    <li key={index} className={textColorClass}>
+                      {issueText} ({severityText} risk)
+                      {description ? `: ${description}` : ''}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           ) : (
