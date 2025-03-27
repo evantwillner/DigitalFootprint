@@ -16,9 +16,15 @@ import {
   filterTimelineByDateRange,
   getActivityByPlatform,
   TimelineActivityData,
-  formatNumber
+  formatNumber,
+  GRADIENT_COLORS
 } from "@/lib/chart-utils";
 import { Platform } from "@shared/schema";
+import {
+  PrivacyAssessmentSection,
+  SentimentAnalysisSection,
+  PlatformSelector
+} from "./timeline-sections";
 
 export default function TimelineTab({ data, isLoading }: TabContentProps) {
   const [, setLocation] = useLocation();
@@ -30,15 +36,84 @@ export default function TimelineTab({ data, isLoading }: TabContentProps) {
   const [animationSpeed, setAnimationSpeed] = useState(1000); // milliseconds between animations
   const animationRef = useRef<NodeJS.Timeout | null>(null);
   
-  // Initialize with detailed timeline data
+  // Initialize with actual platform data from the API
   useEffect(() => {
-    // In a real app, we would transform the actual data from the API
-    // Instead of using a generator function
-    const generatedData = generateTimelineData(24, true) as TimelineActivityData[];
-    setTimelineData(generatedData);
+    if (!data || !data.platformData || data.platformData.length === 0) return;
     
-    if (generatedData.length > 0) {
-      setActiveMonth(generatedData[generatedData.length - 1].name);
+    // Find the Reddit platform data since it contains the most detailed activity timeline
+    const redditData = data.platformData.find(
+      p => p.platformId === "reddit" && p.analysisResults?.activityTimeline
+    );
+    
+    if (redditData && redditData.analysisResults?.activityTimeline) {
+      const activities = redditData.analysisResults.activityTimeline;
+      
+      // Transform the Reddit timeline data to our TimelineActivityData format
+      const transformedData: TimelineActivityData[] = activities.map(activity => {
+        // For Reddit API, we have 'period' and 'count' properties in the activity timeline
+        const dateParts = activity.period.split('-');
+        const year = parseInt(dateParts[0]);
+        const month = parseInt(dateParts[1]) - 1; // JS months are 0-indexed
+        const date = new Date(year, month);
+        
+        // Get the sentiment data for this time period if available
+        const sentiment = redditData.analysisResults?.sentimentBreakdown ? {
+          positive: redditData.analysisResults.sentimentBreakdown.positive * 100 || 0,
+          neutral: redditData.analysisResults.sentimentBreakdown.neutral * 100 || 0,
+          negative: redditData.analysisResults.sentimentBreakdown.negative * 100 || 0
+        } : { positive: 0, neutral: 0, negative: 0 };
+        
+        // Create platform-specific activity counts
+        const platforms: Record<string, number> = {};
+        data.platformData.forEach(platform => {
+          // For now just assign the activity count to each platform
+          // In a real app, we'd have platform-specific time data
+          platforms[platform.platformId] = activity.count / data.platformData.length;
+        });
+        
+        // Estimate content types based on overall counts from the breakdown
+        const totalPosts = data.summary?.breakdownByType.posts || 0;
+        const totalComments = data.summary?.breakdownByType.comments || 0;
+        const totalLikes = data.summary?.breakdownByType.likes || 0;
+        const total = totalPosts + totalComments + totalLikes;
+        
+        const contentTypes = {
+          posts: total > 0 ? Math.round((totalPosts / total) * activity.count) : 0,
+          comments: total > 0 ? Math.round((totalComments / total) * activity.count) : 0,
+          likes: total > 0 ? Math.round((totalLikes / total) * activity.count) : 0,
+          shares: 0 // Not available in our API
+        };
+        
+        // Create our TimelineActivityData object
+        return {
+          name: date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+          value: activity.count,
+          date: date,
+          platforms: platforms,
+          sentiment: sentiment,
+          contentTypes: contentTypes,
+          highlighted: false,
+          privacyScore: redditData.analysisResults?.privacyConcerns ? 
+            redditData.analysisResults.privacyConcerns.length * 10 : 0,
+          engagementRate: Math.random() * 5 + 1 // Mock engagement rate since it's not in our API
+        };
+      }).sort((a, b) => a.date.getTime() - b.date.getTime()); // Sort by date ascending
+      
+      setTimelineData(transformedData);
+      
+      if (transformedData.length > 0) {
+        // Set the active month to the most recent data point
+        setActiveMonth(transformedData[transformedData.length - 1].name);
+      }
+    } else {
+      // If no Reddit data is available, fall back to generated data but make it clear it's a fallback
+      console.log("No Reddit timeline data available, using synthetic data as a fallback");
+      const generatedData = generateTimelineData(24, true) as TimelineActivityData[];
+      setTimelineData(generatedData);
+      
+      if (generatedData.length > 0) {
+        setActiveMonth(generatedData[generatedData.length - 1].name);
+      }
     }
     
     return () => {
@@ -47,7 +122,7 @@ export default function TimelineTab({ data, isLoading }: TabContentProps) {
         clearTimeout(animationRef.current);
       }
     };
-  }, []);
+  }, [data]);
   
   // Handle animation play/pause
   useEffect(() => {
@@ -388,27 +463,12 @@ export default function TimelineTab({ data, isLoading }: TabContentProps) {
                   </ResponsiveContainer>
                 </div>
               </div>
-              <div className="flex flex-wrap justify-center gap-2 mt-6 p-3 frost-blur rounded-xl">
-                <Button 
-                  variant={activePlatform === "all" ? "default" : "outline"} 
-                  size="sm"
-                  onClick={() => setActivePlatform("all")}
-                  className={`${activePlatform === "all" ? "button-gradient font-medium" : "bg-white/80 hover:bg-white"} transition-all shadow-sm`}
-                >
-                  All Platforms
-                </Button>
-                {Object.keys(activeData.platforms || {}).map(platform => (
-                  <Button 
-                    key={platform}
-                    variant={activePlatform === platform ? "default" : "outline"} 
-                    size="sm"
-                    onClick={() => setActivePlatform(platform as Platform)}
-                    className={`${activePlatform === platform ? "button-gradient font-medium" : "bg-white/80 hover:bg-white"} transition-all shadow-sm`}
-                  >
-                    {platform}
-                  </Button>
-                ))}
-              </div>
+              <PlatformSelector 
+                activeData={activeData} 
+                activeMonth={activeMonth} 
+                activePlatform={activePlatform} 
+                setActivePlatform={setActivePlatform} 
+              />
             </CardContent>
           </Card>
           
@@ -497,7 +557,26 @@ export default function TimelineTab({ data, isLoading }: TabContentProps) {
       )}
       
       {/* Sentiment Analysis */}
+      {/* Advanced Analysis Sections */}
       {activeData && activeData.sentiment && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10 fade-in">
+          {/* Use our new components here */}
+          <PrivacyAssessmentSection 
+            data={data}
+            activeData={activeData}
+            activeMonth={activeMonth}
+          />
+          
+          <SentimentAnalysisSection 
+            data={data}
+            activeData={activeData}
+            activeMonth={activeMonth}
+          />
+        </div>
+      )}
+      
+      {/* Legacy sentiment analysis chart - keeping for backwards compatibility */}
+      {false && activeData && activeData.sentiment && (
         <Card className="mb-10 glass-card border-none rounded-xl overflow-hidden fade-in">
           <div className="bg-gradient-to-r from-blue-50 to-indigo-50/80 px-6 py-4 border-b border-white/20">
             <h4 className="text-lg font-display font-medium text-gray-800 flex items-center">
