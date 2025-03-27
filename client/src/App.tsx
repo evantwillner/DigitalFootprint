@@ -23,6 +23,7 @@ import { useState, useEffect } from "react";
 
 // Test components
 import TestCharts from "@/components/visualization/TestCharts";
+import BasicChart from "@/components/visualization/BasicChart";
 
 // Initial app loading animation
 function AppLoader() {
@@ -55,8 +56,9 @@ function Router() {
         <ProtectedRoute path="/subscribe" component={Subscribe} />
         <ProtectedRoute path="/payment-success" component={PaymentSuccess} />
         <ProtectedRoute path="/subscription-success" component={SubscriptionSuccess} />
-        {/* Test route to verify charts work */}
+        {/* Test routes to verify charts work */}
         <Route path="/test-charts" component={TestCharts} />
+        <Route path="/basic-chart" component={BasicChart} />
         <Route component={NotFound} />
       </Switch>
     </PageTransition>
