@@ -7,6 +7,7 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import { CHART_COLORS, generateTimelineData, generateTopicData } from "@/lib/chart-utils";
+import RedditDataCharts from "@/components/visualization/RedditDataCharts";
 
 // Reusable component for displaying insights from any platform
 interface InsightsDisplayProps {
@@ -817,6 +818,17 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
           </Card>
         </div>
       </div>
+      
+      {/* Add RedditDataCharts when Reddit data is available */}
+      {redditData && (
+        <div className="mb-8">
+          <h3 className="text-xl font-semibold mb-4">Reddit Data Visualization</h3>
+          <RedditDataCharts 
+            platformData={redditData} 
+            isLoading={isLoading} 
+          />
+        </div>
+      )}
       
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 mb-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between">
