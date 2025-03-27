@@ -266,16 +266,24 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
       const date = new Date(parseInt(year), parseInt(month) - 1);
       const formattedMonth = date.toLocaleDateString('en-US', { month: 'short' });
       
+      // Use a minimum value of 5 to ensure bars are visible on the chart
+      // When actual activity count is 0, show a minimum value that's still visible
       return {
         name: formattedMonth,
-        value: Math.max(1, item.count) // Ensure at least 1 for visibility
+        value: Math.max(5, item.count) // Ensure at least 5 for better visibility
       };
     });
     
-    // Double check that we have data values that will display properly
-    const hasNonZeroValues = timelineData.some(data => data.value > 0);
-    if (!hasNonZeroValues) {
-      // If all zeros, switch to karma-based estimation
+    // Check if the timeline is all minimal values (all 5s or close to that),
+    // indicating that we need our fallback system with more pronounced distribution
+    const allLowValues = timelineData.every(data => data.value <= 5);
+    const totalActivity = timelineData.reduce((sum, item) => sum + item.value, 0);
+    
+    console.log(`[DEBUG] Timeline data check - allLowValues: ${allLowValues}, totalActivity: ${totalActivity}`);
+    
+    if (allLowValues || totalActivity < 10) {
+      // If almost all zeros or very minimal activity, use karma-based distribution for better visualization
+      console.log(`[DEBUG] Using fallback timeline distribution for better visualization`);
       timelineData = [];
     }
   } 
@@ -314,14 +322,17 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
   
   if (redditData?.analysisResults?.topTopics && redditData.analysisResults.topTopics.length > 0) {
     // Use real Reddit topic data if available
+    console.log(`[DEBUG] Processing Reddit topTopics with ${redditData.analysisResults.topTopics.length} items:`, 
+      JSON.stringify(redditData.analysisResults.topTopics));
     
     topicData = redditData.analysisResults.topTopics.map((item: { topic: string; percentage: number }) => {
       // Normalize the topic name - remove 'r/' prefix if it exists for consistency
       const cleanName = item.topic.startsWith('r/') ? item.topic.substring(2) : item.topic;
       
+      // Make sure percentage values are adequate for pie chart display
       return {
         name: cleanName,
-        value: Math.max(1, item.percentage) // Ensure at least 1% for visibility
+        value: Math.max(5, item.percentage) // Ensure at least 5% for better visibility
       };
     });
     
@@ -334,6 +345,7 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
           value: Math.max(5, 100 - topicData[0].value)
         });
       } else {
+        console.log(`[DEBUG] No topic data available, using fallback topics`);
         // Completely empty, add default topics
         topicData = [
           { name: "Technology", value: 45 },
@@ -341,6 +353,9 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
           { name: "News", value: 25 }
         ];
       }
+    } else {
+      console.log(`[DEBUG] Using ${topicData.length} items for pie chart:`, 
+        topicData.map(t => `${t.name}: ${t.value}`).join(', '));
     }
   } else if (redditSpecificStats.topSubreddits && redditSpecificStats.topSubreddits.length > 0) {
     // Convert subreddits into topic data with approximated percentages
@@ -802,12 +817,17 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
                       outerRadius={80}
                       dataKey="value"
                       nameKey="name"
-                      label={({ name, percent }: { name: string, percent: number }) => 
+                      // Use simpler label for better performance and clarity
+                      label={({ name, percent }: { name: string, percent: number }) => {
+                        // Format the percentage to ensure it's always visible
+                        const formattedPercent = Math.max(1, Math.round(percent * 100));
+                        
                         // Adapt label format based on platform
-                        redditData 
-                          ? `r/${name}: ${(percent * 100).toFixed(0)}%` 
-                          : `${name}: ${(percent * 100).toFixed(0)}%`
-                      }
+                        const displayName = redditData ? `r/${name}` : name;
+                        
+                        // Only show label text if percentage is significant enough
+                        return formattedPercent >= 5 ? `${displayName}: ${formattedPercent}%` : '';
+                      }}
                     >
                       {topicData.map((entry: TopicChartData, index: number) => (
                         <Cell 
@@ -816,7 +836,11 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
                         />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value) => [`${value}%`, 'Activity']} />
+                    <Tooltip 
+                      formatter={(value) => [`${value}%`, 'Activity']} 
+                      // Improve tooltip for better UX
+                      contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
