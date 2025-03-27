@@ -24,6 +24,7 @@ import { useState, useEffect } from "react";
 // Test components
 import TestCharts from "@/components/visualization/TestCharts";
 import BasicChart from "@/components/visualization/BasicChart";
+import SimpleCharts from "@/components/visualization/SimpleCharts";
 
 // Initial app loading animation
 function AppLoader() {
@@ -59,6 +60,7 @@ function Router() {
         {/* Test routes to verify charts work */}
         <Route path="/test-charts" component={TestCharts} />
         <Route path="/basic-chart" component={BasicChart} />
+        <Route path="/simple-charts" component={SimpleCharts} />
         <Route component={NotFound} />
       </Switch>
     </PageTransition>
