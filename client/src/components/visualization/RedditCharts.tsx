@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { 
   PieChart, Pie, Cell, 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
-  ResponsiveContainer 
+  ResponsiveContainer, Legend 
 } from 'recharts';
 
 // Chart colors with nice gradient effect
@@ -57,6 +57,7 @@ export function RedditTimelineChart() {
                   padding: '8px'
                 }}
               />
+              <Legend />
               <Bar
                 dataKey="value"
                 name="Activity"
@@ -122,6 +123,7 @@ export function RedditCommunitiesChart() {
                   padding: '8px'
                 }}
               />
+              <Legend />
             </PieChart>
           </ResponsiveContainer>
         </CardContent>

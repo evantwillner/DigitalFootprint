@@ -25,6 +25,7 @@ import { useState, useEffect } from "react";
 import TestCharts from "@/components/visualization/TestCharts";
 import BasicChart from "@/components/visualization/BasicChart";
 import SimpleCharts from "@/components/visualization/SimpleCharts";
+import RedditVisualization from "@/components/visualization/RedditCharts";
 
 // Initial app loading animation
 function AppLoader() {
@@ -61,6 +62,7 @@ function Router() {
         <Route path="/test-charts" component={TestCharts} />
         <Route path="/basic-chart" component={BasicChart} />
         <Route path="/simple-charts" component={SimpleCharts} />
+        <Route path="/reddit-charts" component={RedditVisualization} />
         <Route component={NotFound} />
       </Switch>
     </PageTransition>
