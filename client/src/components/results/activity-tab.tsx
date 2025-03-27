@@ -5,7 +5,7 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, PieChart, Pie, Cell } from "recharts";
 import { CHART_COLORS, generateTimelineData } from "@/lib/chart-utils";
-import RedditActivityAnalysis from "@/components/visualization/RedditActivityAnalysis";
+import RedditDataCharts from "@/components/visualization/RedditDataCharts";
 
 export default function ActivityTab({ data, isLoading }: TabContentProps) {
   const [, setLocation] = useLocation();
@@ -328,7 +328,7 @@ export default function ActivityTab({ data, isLoading }: TabContentProps) {
               Reddit Activity Analysis
             </h3>
           </div>
-          <RedditActivityAnalysis 
+          <RedditDataCharts 
             platformData={redditData} 
             isLoading={isLoading} 
           />
