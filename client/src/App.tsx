@@ -21,6 +21,9 @@ import { PageTransition, RouteChangeIndicator } from "@/components/ui/page-trans
 import { FullscreenLoader } from "@/components/ui/fullscreen-loader";
 import { useState, useEffect } from "react";
 
+// Test components
+import TestCharts from "@/components/visualization/TestCharts";
+
 // Initial app loading animation
 function AppLoader() {
   const [isLoading, setIsLoading] = useState(true);
@@ -52,6 +55,8 @@ function Router() {
         <ProtectedRoute path="/subscribe" component={Subscribe} />
         <ProtectedRoute path="/payment-success" component={PaymentSuccess} />
         <ProtectedRoute path="/subscription-success" component={SubscriptionSuccess} />
+        {/* Test route to verify charts work */}
+        <Route path="/test-charts" component={TestCharts} />
         <Route component={NotFound} />
       </Switch>
     </PageTransition>
