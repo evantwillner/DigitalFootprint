@@ -26,6 +26,7 @@ import TestCharts from "@/components/visualization/TestCharts";
 import BasicChart from "@/components/visualization/BasicChart";
 import SimpleCharts from "@/components/visualization/SimpleCharts";
 import RedditVisualization from "@/components/visualization/RedditCharts";
+import RedditChartsBasic from "@/components/visualization/RedditChartsBasic";
 
 // Initial app loading animation
 function AppLoader() {
@@ -63,6 +64,7 @@ function Router() {
         <Route path="/basic-chart" component={BasicChart} />
         <Route path="/simple-charts" component={SimpleCharts} />
         <Route path="/reddit-charts" component={RedditVisualization} />
+        <Route path="/reddit-basic" component={RedditChartsBasic} />
         <Route component={NotFound} />
       </Switch>
     </PageTransition>
