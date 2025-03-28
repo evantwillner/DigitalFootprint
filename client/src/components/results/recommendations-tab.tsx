@@ -5,9 +5,29 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
+import { Separator } from "@/components/ui/separator";
+import { RedditRecommendations } from "@/components/visualization/RedditRecommendations";
+import { SparkleEffect } from "@/components/ui/sparkle-effect";
+import { PLATFORM_CONFIG } from "@/lib/platform-icons";
 
 export default function RecommendationsTab({ data, isLoading }: TabContentProps) {
   const [, setLocation] = useLocation();
+  
+  // Create a platform data map for easier access
+  const platformDataMap = new Map();
+  
+  // Populate the map with platform-specific data if data exists
+  if (data?.platformData) {
+    for (const platform of data.platformData) {
+      platformDataMap.set(platform.platformId, platform);
+    }
+  }
+  
+  // Get available platforms (for extensibility)
+  const availablePlatforms = data?.platformData?.map(p => p.platformId) || [];
+  
+  // Check for specific platforms
+  const redditData = platformDataMap.get('reddit');
   
   // Sample privacy recommendations
   const privacyRecommendations = [
@@ -121,28 +141,68 @@ export default function RecommendationsTab({ data, isLoading }: TabContentProps)
   return (
     <>
       <div className="mb-6">
-        <h3 className="text-lg font-medium mb-4">Privacy Recommendations</h3>
+        <div className="flex items-center mb-2">
+          <SparkleEffect isActive colors={["#4F46E5", "#8B5CF6", "#EC4899"]}>
+            <h3 className="text-xl font-semibold bg-gradient-to-r from-primary/80 to-primary bg-clip-text text-transparent">
+              Privacy Recommendations
+            </h3>
+          </SparkleEffect>
+        </div>
         <p className="text-gray-600 mb-6">
           Based on our analysis of {data.username}'s digital footprint, we recommend the following actions to enhance online privacy and security.
         </p>
       </div>
       
+      {/* Platform-specific recommendations */}
+      {redditData && (
+        <div className="mb-8">
+          <div className="flex items-center mb-4">
+            <div className="mr-2">
+              {PLATFORM_CONFIG.reddit.icon}
+            </div>
+            <h3 className="text-xl font-semibold text-gray-800">
+              Reddit-Specific Recommendations
+            </h3>
+          </div>
+          
+          <RedditRecommendations 
+            platformData={redditData}
+            isLoading={isLoading}
+          />
+          
+          <Separator className="my-8" />
+        </div>
+      )}
+      
+      {/* Cross-platform recommendations */}
       <div className="mb-8">
-        <h3 className="text-md font-medium mb-3">Recommended Privacy Actions</h3>
+        <h3 className="text-lg font-medium mb-3">Cross-Platform Privacy Actions</h3>
         <div className="space-y-4">
           {privacyRecommendations.map((recommendation, index) => (
-            <Card key={index}>
+            <Card key={index} className={recommendation.severity === "high" ? "border-red-200" : ""}>
               <CardContent className="p-5">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between">
                   <div className="flex-1">
                     <div className="flex items-center mb-2">
-                      <h4 className="font-medium">{recommendation.title}</h4>
+                      <SparkleEffect isActive={recommendation.severity === "high"} colors={["#4F46E5", "#6366F1"]} size={10}>
+                        <h4 className="font-medium">{recommendation.title}</h4>
+                      </SparkleEffect>
                       <Badge 
                         className={`ml-2 ${getSeverityColor(recommendation.severity)}`}
                       >
                         {recommendation.severity}
                       </Badge>
-                      <Badge variant="outline" className="ml-2">
+                      <Badge variant="outline" className={`ml-2 ${
+                        recommendation.platform === 'reddit' 
+                          ? 'bg-orange-50 text-orange-800 border-orange-200' 
+                          : recommendation.platform === 'twitter'
+                            ? 'bg-blue-50 text-blue-800 border-blue-200'
+                            : recommendation.platform === 'instagram'
+                              ? 'bg-purple-50 text-purple-800 border-purple-200'
+                              : recommendation.platform === 'facebook'
+                                ? 'bg-indigo-50 text-indigo-800 border-indigo-200'
+                                : ''
+                      }`}>
                         {recommendation.platform}
                       </Badge>
                     </div>
@@ -164,19 +224,31 @@ export default function RecommendationsTab({ data, isLoading }: TabContentProps)
       
       <div className="mb-8">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-md font-medium">Recommended Content Removal</h3>
+          <SparkleEffect isActive colors={["#F43F5E", "#EC4899"]}>
+            <h3 className="text-lg font-medium">Cross-Platform Content Removal</h3>
+          </SparkleEffect>
           <Badge variant="secondary">Premium Feature</Badge>
         </div>
         <Card>
           <CardContent className="p-6">
             <div className="space-y-4">
-              {contentRemovalRecommendations.map((recommendation, index) => (
+              {contentRemovalRecommendations.filter(rec => rec.platform !== 'reddit').map((recommendation, index) => (
                 <div key={index} className="pb-4 border-b border-gray-100 last:border-b-0 last:pb-0">
                   <div className="flex flex-col md:flex-row md:items-center justify-between">
                     <div>
                       <div className="flex items-center mb-1">
                         <h4 className="font-medium">{recommendation.content}</h4>
-                        <Badge variant="outline" className="ml-2">
+                        <Badge variant="outline" className={`ml-2 ${
+                          recommendation.platform === 'reddit' 
+                            ? 'bg-orange-50 text-orange-800 border-orange-200' 
+                            : recommendation.platform === 'twitter'
+                              ? 'bg-blue-50 text-blue-800 border-blue-200'
+                              : recommendation.platform === 'instagram'
+                                ? 'bg-purple-50 text-purple-800 border-purple-200'
+                                : recommendation.platform === 'facebook'
+                                  ? 'bg-indigo-50 text-indigo-800 border-indigo-200'
+                                  : ''
+                        }`}>
                           {recommendation.platform}
                         </Badge>
                       </div>
@@ -203,92 +275,48 @@ export default function RecommendationsTab({ data, isLoading }: TabContentProps)
         </Card>
       </div>
       
-      <div className="bg-primary/5 border border-primary/20 p-6 rounded-lg mb-8">
-        <h3 className="text-lg font-medium mb-3">Next Steps for Better Digital Privacy</h3>
-        <p className="text-gray-600 mb-4">
-          Follow these suggestions to maintain a cleaner digital footprint:
-        </p>
-        <ul className="space-y-2 mb-6">
-          <li className="flex items-start">
-            <span className="text-primary mr-2">
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                width="20" 
-                height="20" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-              >
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
-              </svg>
-            </span>
-            <span>Regularly review and update privacy settings on all platforms</span>
-          </li>
-          <li className="flex items-start">
-            <span className="text-primary mr-2">
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                width="20" 
-                height="20" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-              >
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
-              </svg>
-            </span>
-            <span>Consider using pseudonyms for personal accounts not tied to your professional identity</span>
-          </li>
-          <li className="flex items-start">
-            <span className="text-primary mr-2">
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                width="20" 
-                height="20" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-              >
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
-              </svg>
-            </span>
-            <span>Set up Google Alerts for your name to monitor when new content appears online</span>
-          </li>
-          <li className="flex items-start">
-            <span className="text-primary mr-2">
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                width="20" 
-                height="20" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-              >
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
-              </svg>
-            </span>
-            <span>Use a password manager and enable two-factor authentication on all accounts</span>
-          </li>
-        </ul>
+      <div className="bg-white p-6 rounded-lg shadow-lg mb-8 relative overflow-hidden">
+        <div className="flex items-center mb-4">
+          <SparkleEffect isActive colors={["#4F46E5", "#8B5CF6", "#EC4899"]}>
+            <h3 className="text-xl font-semibold bg-gradient-to-r from-primary/80 to-primary bg-clip-text text-transparent">
+              Privacy Protection Strategy
+            </h3>
+          </SparkleEffect>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div className="bg-blue-50/70 rounded-lg p-4 border border-blue-100">
+            <h4 className="font-medium text-gray-900 mb-2">Regular Maintenance</h4>
+            <SparkleEffect isActive={true} sparkleCount={8} colors={["#4F46E5", "#6366F1"]} size={10}>
+              <p className="text-gray-700 font-medium">Review privacy settings monthly</p>
+            </SparkleEffect>
+            <p className="text-gray-600 mt-2 text-sm">Keep all platform privacy settings updated to the strictest levels.</p>
+          </div>
+          
+          <div className="bg-blue-50/70 rounded-lg p-4 border border-blue-100">
+            <h4 className="font-medium text-gray-900 mb-2">Identity Protection</h4>
+            <p className="text-gray-700">Use pseudonyms for personal accounts</p>
+            <p className="text-gray-600 mt-2 text-sm">Separate professional and personal identities across platforms.</p>
+          </div>
+          
+          <div className="bg-blue-50/70 rounded-lg p-4 border border-blue-100">
+            <h4 className="font-medium text-gray-900 mb-2">Monitoring</h4>
+            <SparkleEffect isActive={true} sparkleCount={6} colors={["#10B981", "#059669"]} size={10}>
+              <p className="text-gray-700 font-medium">Set up Google Alerts for your name</p>
+            </SparkleEffect>
+            <p className="text-gray-600 mt-2 text-sm">Stay informed when new content appears online about you.</p>
+          </div>
+          
+          <div className="bg-blue-50/70 rounded-lg p-4 border border-blue-100">
+            <h4 className="font-medium text-gray-900 mb-2">Security</h4>
+            <p className="text-gray-700">Enable two-factor authentication</p>
+            <p className="text-gray-600 mt-2 text-sm">Use a password manager and unique passwords for all accounts.</p>
+          </div>
+        </div>
+        
         <div className="text-center">
           <Link to="/pricing">
-            <Button>Get Professional Help</Button>
+            <Button>Get Professional Privacy Assistance</Button>
           </Link>
         </div>
       </div>
