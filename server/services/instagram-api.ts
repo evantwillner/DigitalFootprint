@@ -7,11 +7,18 @@ import { log } from '../vite';
  * 
  * This service connects to the Instagram Graph API to retrieve user data
  * and analyze digital footprints.
+ * 
+ * Note: The Instagram Basic Display API has been deprecated.
+ * This implementation uses the Instagram Graph API, which requires:
+ * - A Facebook Developer account
+ * - A Business or Creator Instagram account
+ * - A Facebook Page linked to the Instagram account
  */
 export class InstagramApiService {
   private clientId: string | undefined;
   private clientSecret: string | undefined;
   private accessToken: string | undefined;
+  private longLivedToken: string | undefined;
   private tokenExpiration: number = 0;
   
   constructor() {
@@ -26,9 +33,9 @@ export class InstagramApiService {
     this.clientSecret = process.env.INSTAGRAM_CLIENT_SECRET;
     
     if (this.clientId && this.clientSecret) {
-      log('Instagram API credentials loaded', 'instagram-api');
+      log('Instagram Graph API credentials loaded', 'instagram-api');
     } else {
-      log('Missing Instagram API credentials', 'instagram-api');
+      log('Missing Instagram Graph API credentials', 'instagram-api');
     }
   }
   
@@ -47,72 +54,89 @@ export class InstagramApiService {
     return {
       configured,
       message: configured 
-        ? "Instagram API is properly configured" 
-        : "Instagram API requires credentials. Data will be simulated."
+        ? "Instagram Graph API is properly configured" 
+        : "Instagram Graph API requires credentials. Data will be simulated."
     };
   }
   
   /**
-   * Authenticate with the Instagram API
+   * Authenticate with the Instagram Graph API
    * @returns Boolean indicating if authentication was successful
    */
   private async authenticate(): Promise<boolean> {
     try {
       if (!this.clientId || !this.clientSecret) {
-        log('Cannot authenticate - missing Instagram API credentials', 'instagram-api');
+        log('Cannot authenticate - missing Instagram Graph API credentials', 'instagram-api');
         return false;
       }
       
       // Check if token is still valid
-      if (this.accessToken && Date.now() < this.tokenExpiration) {
+      if (this.longLivedToken && Date.now() < this.tokenExpiration) {
         return true;
       }
       
       // Request a new access token
-      log('Requesting new Instagram access token', 'instagram-api');
+      log('Requesting new Instagram Graph API access token', 'instagram-api');
       
-      // In a real implementation, this would use the Instagram API to get an access token
+      // In a real implementation, this would use the Graph API to get an access token
+      // The full flow would be:
+      // 1. Get a short-lived token via OAuth
+      // 2. Exchange it for a long-lived token
+      // 3. Use the Page access token to get an Instagram User token
+      
       // For this prototype, we'll simulate successful authentication
-      this.accessToken = 'simulated_instagram_token';
-      this.tokenExpiration = Date.now() + 3600 * 1000; // Token valid for 1 hour
+      this.accessToken = 'simulated_instagram_short_lived_token';
+      this.longLivedToken = 'simulated_instagram_long_lived_token';
+      this.tokenExpiration = Date.now() + 60 * 24 * 3600 * 1000; // Token valid for 60 days
       
-      log('Instagram authentication successful', 'instagram-api');
+      log('Instagram Graph API authentication successful', 'instagram-api');
       return true;
     } catch (error) {
-      console.error('Instagram authentication error:', error);
+      console.error('Instagram Graph API authentication error:', error);
       return false;
     }
   }
   
   /**
-   * Fetch user data from Instagram
+   * Fetch user data from Instagram using the Graph API
    * @param username Instagram username to look up
    * @returns Platform data or null if not found
    */
   public async fetchUserData(username: string): Promise<PlatformData | null> {
     try {
-      log(`Fetching Instagram data for user: ${username}`, 'instagram-api');
+      log(`Fetching Instagram data for user: ${username} via Graph API`, 'instagram-api');
       
       // Check if we have credentials
       if (!this.hasValidCredentials()) {
-        log('No Instagram API credentials - using simulated data', 'instagram-api');
+        log('No Instagram Graph API credentials - using simulated data', 'instagram-api');
         return this.simulateUserData(username);
       }
       
-      // Authenticate with the API
+      // Authenticate with the Graph API
       const authenticated = await this.authenticate();
       if (!authenticated) {
-        log('Instagram authentication failed - using simulated data', 'instagram-api');
+        log('Instagram Graph API authentication failed - using simulated data', 'instagram-api');
         return this.simulateUserData(username);
       }
       
-      // In a real implementation, this would make calls to the Instagram Graph API
-      // For the prototype, we'll use simulated data
+      // In a real implementation, we would:
+      // 1. Use the Business Discovery API to search for the user (requires a valid IG business account + page)
+      // 2. Endpoint would be: https://graph.facebook.com/v19.0/{ig-user-id}?fields=business_discovery.username({username})
+      // 3. This requires the 'instagram_basic' permission
       
-      log(`Successfully fetched data for ${username} on Instagram (simulated)`, 'instagram-api');
+      // Additional data requires specific permissions:
+      // - For media: instagram_basic permission and business_management permission
+      // - For insights: instagram_manage_insights permission
+      
+      // For this prototype, we'll use simulated data but with a note that 
+      // we're ready to implement real API calls when credentials are provided
+      
+      log(`Successfully fetched data for ${username} on Instagram using Graph API (simulated)`, 'instagram-api');
+      
+      // Return simulated data with a structure that matches what the Graph API would return
       return this.simulateUserData(username);
     } catch (error) {
-      console.error(`Error fetching Instagram data for ${username}:`, error);
+      console.error(`Error fetching Instagram data via Graph API for ${username}:`, error);
       return null;
     }
   }
