@@ -6,13 +6,32 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 import { CHART_COLORS } from "@/lib/chart-utils";
+import { RedditConnectionsAnalysis } from "@/components/visualization/RedditConnectionsAnalysis";
+import { SparkleEffect } from "@/components/ui/sparkle-effect";
+import { PLATFORM_CONFIG } from "@/lib/platform-icons";
 
 export default function ConnectionsTab({ data, isLoading }: TabContentProps) {
   const [, setLocation] = useLocation();
   
-  // Sample connections data
+  // Create a platform data map for easier access
+  const platformDataMap = new Map();
+  
+  // Populate the map with platform-specific data if data exists
+  if (data?.platformData) {
+    for (const platform of data.platformData) {
+      platformDataMap.set(platform.platformId, platform);
+    }
+  }
+  
+  // Get available platforms (for extensibility)
+  const availablePlatforms = data?.platformData?.map(p => p.platformId) || [];
+  
+  // Check for specific platforms
+  const redditData = platformDataMap.get('reddit');
+  
+  // Sample connections data for overall view
   const connectionDistributionData = [
     { name: "Reddit", value: 45 },
     { name: "Twitter", value: 28 },
@@ -20,7 +39,7 @@ export default function ConnectionsTab({ data, isLoading }: TabContentProps) {
     { name: "Other", value: 9 },
   ];
   
-  // Sample most frequent interactions
+  // Sample most frequent interactions across all platforms
   const frequentInteractions = [
     { name: "tech_enthusiast", platform: "reddit", interactions: 27, mutual: true },
     { name: "codingmaster", platform: "reddit", interactions: 19, mutual: true },
@@ -29,7 +48,7 @@ export default function ConnectionsTab({ data, isLoading }: TabContentProps) {
     { name: "javascript_dev", platform: "reddit", interactions: 10, mutual: false },
   ];
   
-  // Sample communities/groups
+  // Sample communities/groups across all platforms
   const communities = [
     { name: "r/programming", platform: "reddit", members: "3.2M", role: "Member" },
     { name: "r/webdev", platform: "reddit", members: "1.5M", role: "Active Commenter" },
@@ -63,9 +82,42 @@ export default function ConnectionsTab({ data, isLoading }: TabContentProps) {
   return (
     <>
       <div className="mb-6">
-        <h3 className="text-lg font-medium mb-4">Network Analysis</h3>
+        <div className="flex items-center mb-2">
+          <SparkleEffect isActive colors={["#4F46E5", "#8B5CF6", "#EC4899"]}>
+            <h3 className="text-xl font-semibold bg-gradient-to-r from-primary/80 to-primary bg-clip-text text-transparent">Network Analysis</h3>
+          </SparkleEffect>
+        </div>
         <p className="text-gray-600 mb-6">
           Analysis of {data.username}'s connections, communities, and interactions across platforms.
+        </p>
+      </div>
+      
+      {/* Reddit-specific connections analysis section */}
+      {redditData && (
+        <div className="mb-8">
+          <div className="flex items-center mb-4">
+            <div className="mr-2">
+              {PLATFORM_CONFIG.reddit.icon}
+            </div>
+            <h3 className="text-xl font-semibold text-gray-800">
+              Reddit Network Analysis
+            </h3>
+          </div>
+          
+          <RedditConnectionsAnalysis 
+            platformData={redditData}
+            isLoading={isLoading}
+          />
+          
+          <Separator className="my-8" />
+        </div>
+      )}
+      
+      {/* Overall platform analysis - always show this */}
+      <div className="mb-6">
+        <h3 className="text-lg font-medium mb-4">Cross-Platform Connections</h3>
+        <p className="text-gray-600 mb-4">
+          Overview of connections and communities across all social platforms.
         </p>
       </div>
       
@@ -80,7 +132,7 @@ export default function ConnectionsTab({ data, isLoading }: TabContentProps) {
                     data={connectionDistributionData}
                     cx="50%"
                     cy="50%"
-                    labelLine={false}
+                    labelLine={true}
                     outerRadius={80}
                     dataKey="value"
                     label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
@@ -92,7 +144,8 @@ export default function ConnectionsTab({ data, isLoading }: TabContentProps) {
                       />
                     ))}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip formatter={(value) => [value, 'Connections']} />
+                  <Legend />
                 </PieChart>
               </ResponsiveContainer>
             </CardContent>
@@ -106,7 +159,9 @@ export default function ConnectionsTab({ data, isLoading }: TabContentProps) {
               <div className="grid grid-cols-2 gap-4 h-full">
                 <div className="flex flex-col items-center justify-center bg-blue-50 rounded-lg p-4">
                   <p className="text-gray-600 text-sm">Total Connections</p>
-                  <p className="text-3xl font-bold text-primary mt-2">183</p>
+                  <SparkleEffect isActive colors={["#4F46E5", "#6366F1"]} size={10}>
+                    <p className="text-3xl font-bold text-primary mt-2">183</p>
+                  </SparkleEffect>
                   <p className="text-xs text-gray-500 mt-1">Across all platforms</p>
                 </div>
                 
@@ -124,7 +179,9 @@ export default function ConnectionsTab({ data, isLoading }: TabContentProps) {
                 
                 <div className="flex flex-col items-center justify-center bg-blue-50 rounded-lg p-4">
                   <p className="text-gray-600 text-sm">Active Conversations</p>
-                  <p className="text-3xl font-bold text-primary mt-2">28</p>
+                  <SparkleEffect isActive colors={["#4F46E5", "#6366F1"]} size={10}>
+                    <p className="text-3xl font-bold text-primary mt-2">28</p>
+                  </SparkleEffect>
                   <p className="text-xs text-gray-500 mt-1">Recent interactions</p>
                 </div>
               </div>
@@ -134,7 +191,7 @@ export default function ConnectionsTab({ data, isLoading }: TabContentProps) {
       </div>
       
       <div className="mb-8">
-        <h3 className="text-md font-medium mb-3">Most Frequent Interactions</h3>
+        <h3 className="text-md font-medium mb-3">Most Frequent Cross-Platform Interactions</h3>
         <Card>
           <CardContent className="p-6">
             <div className="space-y-4">
@@ -142,14 +199,34 @@ export default function ConnectionsTab({ data, isLoading }: TabContentProps) {
                 <div key={index} className="flex items-center justify-between">
                   <div className="flex items-center">
                     <Avatar className="h-10 w-10 mr-4">
-                      <AvatarFallback className="bg-blue-100 text-primary">
+                      <AvatarFallback className={`${
+                        interaction.platform === 'reddit' 
+                          ? 'bg-orange-100 text-orange-800' 
+                          : interaction.platform === 'twitter'
+                            ? 'bg-blue-100 text-blue-800'
+                            : interaction.platform === 'instagram'
+                              ? 'bg-purple-100 text-purple-800'
+                              : 'bg-gray-100 text-gray-800'
+                      }`}>
                         {interaction.name.substring(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div>
-                      <p className="font-medium">{interaction.name}</p>
+                      <p className="font-medium">{
+                        interaction.platform === 'reddit' 
+                          ? `u/${interaction.name}`
+                          : interaction.name
+                      }</p>
                       <div className="flex items-center text-sm text-gray-500">
-                        <Badge variant="outline" className="mr-2">
+                        <Badge variant="outline" className={`mr-2 ${
+                          interaction.platform === 'reddit' 
+                            ? 'bg-orange-50 text-orange-800 border-orange-200' 
+                            : interaction.platform === 'twitter'
+                              ? 'bg-blue-50 text-blue-800 border-blue-200'
+                              : interaction.platform === 'instagram'
+                                ? 'bg-purple-50 text-purple-800 border-purple-200'
+                                : ''
+                        }`}>
                           {interaction.platform}
                         </Badge>
                         {interaction.mutual && (
@@ -172,7 +249,7 @@ export default function ConnectionsTab({ data, isLoading }: TabContentProps) {
       </div>
       
       <div className="mb-8">
-        <h3 className="text-md font-medium mb-3">Communities & Groups</h3>
+        <h3 className="text-md font-medium mb-3">Communities Across Platforms</h3>
         <Card>
           <CardContent className="p-6">
             <div className="space-y-4">
@@ -182,7 +259,15 @@ export default function ConnectionsTab({ data, isLoading }: TabContentProps) {
                     <div>
                       <p className="font-medium">{community.name}</p>
                       <div className="flex items-center text-sm text-gray-500">
-                        <Badge variant="outline" className="mr-2">
+                        <Badge variant="outline" className={`mr-2 ${
+                          community.platform === 'reddit' 
+                            ? 'bg-orange-50 text-orange-800 border-orange-200' 
+                            : community.platform === 'twitter'
+                              ? 'bg-blue-50 text-blue-800 border-blue-200'
+                              : community.platform === 'facebook'
+                                ? 'bg-indigo-50 text-indigo-800 border-indigo-200'
+                                : ''
+                        }`}>
                           {community.platform}
                         </Badge>
                         <span>{community.members} members</span>
@@ -198,87 +283,44 @@ export default function ConnectionsTab({ data, isLoading }: TabContentProps) {
         </Card>
       </div>
       
-      <div className="bg-blue-50 p-6 rounded-lg mb-8">
-        <h3 className="text-lg font-medium mb-2">Connection Insights</h3>
-        <ul className="space-y-2">
-          <li className="flex items-start">
-            <span className="text-primary mr-2">
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                width="20" 
-                height="20" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-              >
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
-              </svg>
-            </span>
-            <span>Strongest connections are in tech and programming communities, particularly on Reddit.</span>
-          </li>
-          <li className="flex items-start">
-            <span className="text-primary mr-2">
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                width="20" 
-                height="20" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-              >
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
-              </svg>
-            </span>
-            <span>Regularly engages with a core group of 15-20 accounts across platforms.</span>
-          </li>
-          <li className="flex items-start">
-            <span className="text-warning mr-2">
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                width="20" 
-                height="20" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-              >
-                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                <line x1="12" y1="9" x2="12" y2="13" />
-                <line x1="12" y1="17" x2="12.01" y2="17" />
-              </svg>
-            </span>
-            <span>Some professional connections may reveal workplace and career details.</span>
-          </li>
-          <li className="flex items-start">
-            <span className="text-primary mr-2">
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                width="20" 
-                height="20" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-              >
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
-              </svg>
-            </span>
-            <span>Member of several large technology communities that could indicate professional interests and skills.</span>
-          </li>
-        </ul>
+      <div className="bg-white p-6 rounded-lg shadow-lg mb-8 relative overflow-hidden">
+        <div className="flex items-center mb-4">
+          <SparkleEffect isActive colors={["#4F46E5", "#8B5CF6", "#EC4899"]}>
+            <h3 className="text-xl font-semibold bg-gradient-to-r from-primary/80 to-primary bg-clip-text text-transparent">
+              Network Insights
+            </h3>
+          </SparkleEffect>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-blue-50/70 rounded-lg p-4 border border-blue-100">
+            <h4 className="font-medium text-gray-900 mb-2">Connection Patterns</h4>
+            <SparkleEffect isActive={true} sparkleCount={8} colors={["#4F46E5", "#6366F1"]} size={10}>
+              <p className="text-gray-700 font-medium">Strong tech community presence on Reddit</p>
+            </SparkleEffect>
+            <p className="text-gray-600 mt-2 text-sm">Your strongest connections are in programming and technology communities.</p>
+          </div>
+          
+          <div className="bg-blue-50/70 rounded-lg p-4 border border-blue-100">
+            <h4 className="font-medium text-gray-900 mb-2">Engagement Pattern</h4>
+            <p className="text-gray-700">Regular engagement with 15-20 core accounts</p>
+            <p className="text-gray-600 mt-2 text-sm">You have consistent interactions with a small group of users across platforms.</p>
+          </div>
+          
+          <div className="bg-red-50/70 rounded-lg p-4 border border-red-100">
+            <h4 className="font-medium text-gray-900 mb-2">Privacy Concern</h4>
+            <SparkleEffect isActive={true} sparkleCount={8} colors={["#EF4444", "#DC2626"]} size={10}>
+              <p className="text-gray-700 font-medium">Professional connections reveal workplace details</p>
+            </SparkleEffect>
+            <p className="text-gray-600 mt-2 text-sm">Your network may expose career information through mutual connections.</p>
+          </div>
+          
+          <div className="bg-blue-50/70 rounded-lg p-4 border border-blue-100">
+            <h4 className="font-medium text-gray-900 mb-2">Professional Interests</h4>
+            <p className="text-gray-700">Member of large technology communities</p>
+            <p className="text-gray-600 mt-2 text-sm">Your community memberships indicate professional interests in development.</p>
+          </div>
+        </div>
       </div>
     </>
   );
