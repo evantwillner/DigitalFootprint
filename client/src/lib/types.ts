@@ -22,8 +22,9 @@ export interface PlatformConfig {
 
 export interface SearchFormValues {
   username: string;
-  platform: Platform;
-  selectedPlatforms: Platform[];
+  platform?: Platform;
+  selectedPlatforms?: Platform[];
+  platformUsernames?: { platform: Platform, username: string }[];
 }
 
 export interface TabContentProps {

@@ -14,13 +14,13 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-
 // Form schema with validation rules
 const formSchema = z.object({
   username: z.string().min(1, "Username is required"),
 });
 
-type SearchFormValues = z.infer<typeof formSchema>;
+// Define the local type for form submission
+type FormValues = z.infer<typeof formSchema>;
 
 export default function SearchForm() {
   const { toast } = useToast();
@@ -28,7 +28,7 @@ export default function SearchForm() {
   const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>(["instagram"]);
 
   // Initialize the form
-  const form = useForm<SearchFormValues>({
+  const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       username: "",
@@ -53,7 +53,11 @@ export default function SearchForm() {
 
   // Handle search mutation
   const searchMutation = useMutation({
-    mutationFn: async (data: { username: string, platforms: Platform[] }) => {
+    mutationFn: async (data: { 
+      username: string, 
+      platforms: Platform[],
+      platformUsernames?: { platform: Platform, username: string }[]
+    }) => {
       const response = await apiRequest("POST", "/api/search", data);
       const result = await response.json();
       return result;
@@ -74,13 +78,62 @@ export default function SearchForm() {
   });
 
   // Form submission handler
-  const onSubmit = (values: SearchFormValues) => {
+  const onSubmit = (values: FormValues) => {
     // Use the selected platforms from the platform cards
     const platforms = selectedPlatforms;
     
     // Process username to handle platform-specific formats
     let username = values.username.trim();
+    let platformUsernames: { platform: Platform, username: string }[] = [];
     
+    // Check if input contains platform-specific username format
+    // Format example: "reddit: johndoe, instagram: john.doe, twitter: realjohndoe"
+    if (username.includes(":") && username.includes(",")) {
+      // Split by comma and process each platform-username pair
+      const pairs = username.split(",").map((pair: string) => pair.trim());
+      
+      for (const pair of pairs) {
+        // Split each pair by colon
+        const [platformStr, usernameStr] = pair.split(":").map((part: string) => part.trim());
+        
+        // Convert platform string to actual Platform type if it's valid
+        const platform = platformStr.toLowerCase() as Platform;
+        
+        // Check if the extracted platform is valid and in the selected platforms
+        if (platforms.includes(platform) && usernameStr) {
+          // Handle Reddit-specific username format
+          let cleanUsername = usernameStr;
+          if ((cleanUsername.startsWith("u/") || cleanUsername.startsWith("/u/")) && platform === "reddit") {
+            cleanUsername = cleanUsername.startsWith("u/") ? cleanUsername.substring(2) : cleanUsername.substring(3);
+          }
+          
+          platformUsernames.push({
+            platform: platform,
+            username: cleanUsername
+          });
+        }
+      }
+      
+      console.log("Parsed platform-specific usernames:", platformUsernames);
+      
+      // If we successfully parsed platform-usernames, use them
+      if (platformUsernames.length > 0) {
+        searchMutation.mutate({
+          username: "", // Empty main username when using platform-specific ones
+          platforms: platforms,
+          platformUsernames: platformUsernames
+        });
+        
+        // For debugging
+        console.log("Submitting search with platform-specific usernames:", {
+          platforms: platforms,
+          platformUsernames: platformUsernames
+        });
+        return;
+      }
+    }
+    
+    // If we reach here, it means the input wasn't in platform-specific format
     // Handle Reddit-specific username format (u/username or /u/username)
     if ((username.startsWith("u/") || username.startsWith("/u/")) && 
         (platforms.includes("reddit") || platforms.includes("all"))) {
@@ -89,7 +142,7 @@ export default function SearchForm() {
       console.log("Detected Reddit username format, converted to:", username);
     }
     
-    // Start search with the form values and selected platforms
+    // Start search with the standard format (single username for all platforms)
     searchMutation.mutate({
       username: username,
       platforms: platforms,
@@ -131,6 +184,18 @@ export default function SearchForm() {
                 <FormMessage />
                 <div className="text-xs text-gray-500 mt-1">
                   For Reddit, you can enter username with or without the u/ prefix
+                </div>
+                <div className="text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded-md mt-3 border border-blue-100">
+                  <p className="font-medium mb-1">New! Multiple Usernames Across Platforms</p>
+                  <p className="text-xs text-gray-700 mb-1">
+                    You can now search with different usernames for each platform using this format:
+                  </p>
+                  <code className="text-xs bg-white px-2 py-1 rounded border border-gray-200 block my-1">
+                    reddit: johndoe, instagram: john.doe, twitter: realjohndoe
+                  </code>
+                  <p className="text-xs text-gray-700">
+                    This is perfect if you use different usernames across platforms!
+                  </p>
                 </div>
               </FormItem>
             )}
