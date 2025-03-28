@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import { CHART_COLORS, generateTimelineData, generateTopicData } from "@/lib/chart-utils";
 import RedditDataCharts from "@/components/visualization/RedditDataCharts";
+import { InstagramDataCharts } from "@/components/visualization/InstagramDataCharts";
 import NewInsights from "@/components/results/new-insights";
 
 // Reusable component for displaying insights from any platform
@@ -168,6 +169,7 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
   
   // Check for specific platforms - adding in a way that supports future expansion
   const redditData = platformDataMap.get('reddit');
+  const instagramData = platformDataMap.get('instagram');
   // Future expansion for other platforms would be:
   // const twitterData = platformDataMap.get('twitter');
   // const facebookData = platformDataMap.get('facebook');
@@ -831,6 +833,17 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
           <h3 className="text-xl font-semibold mb-4">Reddit Data Visualization</h3>
           <RedditDataCharts 
             platformData={redditData} 
+            isLoading={isLoading} 
+          />
+        </div>
+      )}
+      
+      {/* Add InstagramDataCharts when Instagram data is available */}
+      {instagramData && (
+        <div className="mb-8">
+          <h3 className="text-xl font-semibold mb-4">Instagram Data Visualization</h3>
+          <InstagramDataCharts 
+            platformData={instagramData} 
             isLoading={isLoading} 
           />
         </div>
