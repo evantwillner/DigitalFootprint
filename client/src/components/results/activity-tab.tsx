@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, PieChart, Pie, Cell } from "recharts";
 import { CHART_COLORS, generateTimelineData } from "@/lib/chart-utils";
 import RedditDataCharts from "@/components/visualization/RedditDataCharts";
+import { SparkleEffect } from "@/components/ui/sparkle-effect";
+import { Lightbulb, Activity, Zap, Clock } from "lucide-react";
 
 export default function ActivityTab({ data, isLoading }: TabContentProps) {
   const [, setLocation] = useLocation();
@@ -190,86 +192,58 @@ export default function ActivityTab({ data, isLoading }: TabContentProps) {
         </div>
       </div>
       
-      <div className="bg-blue-50 p-6 rounded-lg mb-8">
-        <h3 className="text-lg font-medium mb-2">Key Activity Insights</h3>
-        <ul className="space-y-2">
-          <li className="flex items-start">
-            <span className="text-primary mr-2">
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                width="20" 
-                height="20" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-              >
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
-              </svg>
-            </span>
-            <span>Peak activity occurs during evenings (8-11pm) and weekends.</span>
-          </li>
-          <li className="flex items-start">
-            <span className="text-primary mr-2">
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                width="20" 
-                height="20" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-              >
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
-              </svg>
-            </span>
-            <span>Most active platform is {data.platformData[0]?.platformId} with {data.platformData[0]?.activityData?.totalComments || 0} comments.</span>
-          </li>
-          <li className="flex items-start">
-            <span className="text-primary mr-2">
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                width="20" 
-                height="20" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-              >
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
-              </svg>
-            </span>
-            <span>Consistently active since {new Date(data.platformData[0]?.profileData?.joinDate || '').getFullYear()} with steady posting patterns.</span>
-          </li>
-          <li className="flex items-start">
-            <span className="text-primary mr-2">
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                width="20" 
-                height="20" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-              >
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
-              </svg>
-            </span>
-            <span>Average posts per day: {Math.round((data.summary.breakdownByType.posts / 365) * 10) / 10} with higher frequency on weekends.</span>
-          </li>
-        </ul>
+      <div className="bg-white p-6 rounded-lg shadow-lg mb-8 relative overflow-hidden">
+        <div className="flex items-center mb-4">
+          <SparkleEffect isActive colors={["#FFD700", "#FFA500", "#FF6347"]}>
+            <h3 className="text-xl font-semibold bg-gradient-to-r from-primary/80 to-primary bg-clip-text text-transparent">
+              Newly Discovered Activity Insights
+            </h3>
+          </SparkleEffect>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-blue-50/70 rounded-lg p-4 border border-blue-100">
+            <div className="flex items-center mb-3">
+              <Activity className="h-5 w-5 text-primary mr-2" />
+              <h4 className="font-medium text-gray-900">Activity Patterns</h4>
+            </div>
+            <SparkleEffect isActive={true} sparkleCount={12} colors={["#4F46E5", "#8B5CF6"]} size={10}>
+              <p className="text-gray-700 font-medium">Peak activity occurs during evenings (8-11pm) and weekends</p>
+            </SparkleEffect>
+            <p className="text-gray-600 mt-2 text-sm">Your digital presence has consistent patterns that might reveal your schedule and habits.</p>
+          </div>
+          
+          <div className="bg-blue-50/70 rounded-lg p-4 border border-blue-100">
+            <div className="flex items-center mb-3">
+              <Zap className="h-5 w-5 text-amber-500 mr-2" />
+              <h4 className="font-medium text-gray-900">Platform Engagement</h4>
+            </div>
+            <SparkleEffect isActive={true} sparkleCount={10} colors={["#F59E0B", "#D97706"]} size={10}>
+              <p className="text-gray-700 font-medium">Most active on {data.platformData[0]?.platformId} with {data.platformData[0]?.activityData?.totalComments || 0} comments</p>
+            </SparkleEffect>
+            <p className="text-gray-600 mt-2 text-sm">Your commenting activity reveals your interests and engagement style.</p>
+          </div>
+          
+          <div className="bg-blue-50/70 rounded-lg p-4 border border-blue-100">
+            <div className="flex items-center mb-3">
+              <Clock className="h-5 w-5 text-green-500 mr-2" />
+              <h4 className="font-medium text-gray-900">Account Longevity</h4>
+            </div>
+            <p className="text-gray-700">Active since {new Date(data.platformData[0]?.profileData?.joinDate || '').getFullYear()} with steady posting patterns</p>
+            <p className="text-gray-600 mt-2 text-sm">Your long-term activity creates a comprehensive digital history.</p>
+          </div>
+          
+          <div className="bg-blue-50/70 rounded-lg p-4 border border-blue-100">
+            <div className="flex items-center mb-3">
+              <Lightbulb className="h-5 w-5 text-purple-500 mr-2" />
+              <h4 className="font-medium text-gray-900">Posting Frequency</h4>
+            </div>
+            <SparkleEffect isActive={true} sparkleCount={8} colors={["#8B5CF6", "#6D28D9"]} size={10}>
+              <p className="text-gray-700 font-medium">Avg posts per day: {Math.round((data.summary.breakdownByType.posts / 365) * 10) / 10} with higher weekend activity</p>
+            </SparkleEffect>
+            <p className="text-gray-600 mt-2 text-sm">Your content creation habits reveal your digital engagement patterns.</p>
+          </div>
+        </div>
       </div>
       
       {/* Reddit-specific activity analysis section */}

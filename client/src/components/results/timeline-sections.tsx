@@ -104,7 +104,7 @@ export function PrivacyAssessmentSection({
                         ? "bg-amber-100 text-amber-800" 
                         : "bg-red-100 text-red-800"
                   }`}>
-                    {concern.severity.charAt(0).toUpperCase() + concern.severity.slice(1)} Risk
+                    {String(concern.severity).charAt(0).toUpperCase() + String(concern.severity).slice(1)} Risk
                   </span>
                 </p>
                 <p className="text-xs text-gray-500 mt-1">

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import { CHART_COLORS, generateTimelineData, generateTopicData } from "@/lib/chart-utils";
 import RedditDataCharts from "@/components/visualization/RedditDataCharts";
+import NewInsights from "@/components/results/new-insights";
 
 // Reusable component for displaying insights from any platform
 interface InsightsDisplayProps {
@@ -467,6 +468,11 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
 
   return (
     <>
+      {/* New Insights Component with Sparkle Effect */}
+      <div className="mb-8">
+        <NewInsights data={data} />
+      </div>
+      
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {/* Dynamic exposure score card that adapts to the platform */}
         <StatCard 
