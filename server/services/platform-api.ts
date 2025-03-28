@@ -2,6 +2,7 @@ import axios from 'axios';
 import { Platform, PlatformData } from '@shared/schema';
 import { twitterApi } from './twitter-api';
 import { redditApi } from './reddit-api';
+import { instagramApi } from './instagram-api';
 import { log } from '../vite';
 
 /**
@@ -80,6 +81,21 @@ class PlatformApiService {
         }
         
         return redditData;
+      }
+      
+      if (platform === 'instagram') {
+        // Get data from Instagram API
+        log(`Fetching Instagram data for ${username}`, 'platform-api');
+        const instagramData = await instagramApi.fetchUserData(username);
+        
+        // Log what we received
+        if (instagramData) {
+          log(`Successfully fetched data for ${username} on Instagram (${instagramData.platformId})`, 'platform-api');
+        } else {
+          log(`No Instagram data returned for ${username}`, 'platform-api');
+        }
+        
+        return instagramData;
       }
       
       // For other platforms, check if we have access to their API

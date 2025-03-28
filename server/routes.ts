@@ -244,6 +244,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Lazy-load the API services to avoid circular dependencies
       const { twitterApi } = await import('./services/twitter-api');
       const { redditApi } = await import('./services/reddit-api');
+      const { instagramApi } = await import('./services/instagram-api');
       
       const status = {
         twitter: {
@@ -253,14 +254,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             : "Twitter API requires credentials. Data will be simulated."
         },
         reddit: redditApi.getApiStatus(),
+        instagram: instagramApi.getApiStatus(),
         // Add other platforms as they're implemented
         facebook: {
           configured: false,
           message: "Facebook API integration is coming soon"
-        },
-        instagram: {
-          configured: false,
-          message: "Instagram API integration is coming soon"
         }
       };
       

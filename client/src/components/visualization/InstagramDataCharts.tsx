@@ -43,35 +43,63 @@ export function InstagramDataCharts({ platformData, isLoading }: InstagramDataCh
     );
   }
 
-  // Mock data for Instagram visualization
-  const contentBreakdownData = [
-    { name: "Photos", value: 65 },
-    { name: "Videos", value: 15 },
-    { name: "Stories", value: 15 },
-    { name: "Reels", value: 5 },
-  ];
+  // Extract data from the platformData
+  const contentBreakdown = platformData.analysisResults?.platformSpecificMetrics?.contentBreakdown as Record<string, number> || {};
   
-  const privacyRiskData = [
-    { name: "High Risk", value: 1 },
-    { name: "Medium Risk", value: 3 },
-    { name: "Low Risk", value: 2 },
-  ];
+  // Handle case when contentBreakdown is missing or empty
+  const contentBreakdownData = Object.keys(contentBreakdown).length > 0 
+    ? Object.entries(contentBreakdown).map(([name, value]) => ({
+        name: name.charAt(0).toUpperCase() + name.slice(1),
+        value: Math.round(value * 100) // Convert from decimal to percentage
+      }))
+    : [
+        { name: "No data", value: 100 }
+      ];
   
-  const locationData = [
-    { name: "New York", value: 12 },
-    { name: "Los Angeles", value: 8 },
-    { name: "Chicago", value: 5 },
-    { name: "San Francisco", value: 4 },
-    { name: "Miami", value: 3 },
-  ];
+  // Create privacy risk data from the privacyMetrics
+  const privacyMetrics = platformData.privacyMetrics?.dataCategories || [];
+  const riskCounts = {
+    "High Risk": 0,
+    "Medium Risk": 0,
+    "Low Risk": 0
+  };
   
+  privacyMetrics.forEach(item => {
+    if (item.severity === "high") riskCounts["High Risk"]++;
+    if (item.severity === "medium") riskCounts["Medium Risk"]++;
+    if (item.severity === "low") riskCounts["Low Risk"]++;
+  });
+  
+  const privacyRiskData = Object.entries(riskCounts).map(([name, value]) => ({
+    name,
+    value
+  }));
+  
+  // Get location data
+  const locationCheckIns = platformData.analysisResults?.platformSpecificMetrics?.locationCheckIns as Array<{name: string, count: number}> || [];
+  const locationData = locationCheckIns.length > 0
+    ? locationCheckIns.map(location => ({
+        name: location.name,
+        value: location.count
+      })).sort((a, b) => b.value - a.value).slice(0, 5) // Top 5 locations
+    : [{ name: "No location data", value: 0 }];
+  
+  // Profile stats
+  const profileData = platformData.profileData || {};
   const profileStatsData = [
-    { name: "Followers", value: 325 },
-    { name: "Following", value: 450 },
-    { name: "Posts", value: 120 },
+    { name: "Followers", value: profileData.followerCount || 0 },
+    { name: "Following", value: profileData.followingCount || 0 },
+    { name: "Posts", value: platformData.activityData?.totalPosts || 0 },
   ];
   
-  const engagementFormatted = "3.2%";
+  // Engagement rate
+  const engagementRate = platformData.analysisResults?.platformSpecificMetrics?.engagementRate as number || 0;
+  const engagementFormatted = `${engagementRate.toFixed(1)}%`;
+  
+  // Average likes per post calculation
+  const totalLikes = platformData.activityData?.totalLikes || 0;
+  const totalPosts = platformData.activityData?.totalPosts || 1; // Avoid division by zero
+  const avgLikesPerPost = Math.round(totalLikes / totalPosts);
   
   // Label renderer for pie charts
   const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, index, name }: any) => {
@@ -198,7 +226,7 @@ export function InstagramDataCharts({ platformData, isLoading }: InstagramDataCh
                     <SparkleEffect isActive colors={["#E1306C", "#F77737"]} size={10}>
                       <p className="text-xl font-bold text-[#E1306C]">{engagementFormatted}</p>
                     </SparkleEffect>
-                    <p className="text-xs text-gray-400">25 avg. likes per post</p>
+                    <p className="text-xs text-gray-400">{avgLikesPerPost} avg. likes per post</p>
                   </div>
                 </div>
               </div>
@@ -219,17 +247,25 @@ export function InstagramDataCharts({ platformData, isLoading }: InstagramDataCh
               <div className="mb-2">
                 <SparkleEffect isActive={true} colors={["#E1306C", "#F77737"]} size={12}>
                   <p className="text-3xl font-bold text-[#E1306C]">
-                    7.4 / 10
+                    {platformData.privacyMetrics?.exposureScore
+                      ? (platformData.privacyMetrics.exposureScore / 10).toFixed(1)
+                      : '?'} / 10
                   </p>
                 </SparkleEffect>
               </div>
               <p className="text-gray-600 text-center mb-4">
-                Your Instagram account has a high level of public visibility.
+                {platformData.privacyMetrics?.exposureScore && platformData.privacyMetrics.exposureScore > 70
+                  ? "Your Instagram account has a high level of public visibility."
+                  : platformData.privacyMetrics?.exposureScore && platformData.privacyMetrics.exposureScore > 40
+                  ? "Your Instagram account has a moderate level of public visibility."
+                  : "Your Instagram account has a low level of public visibility."}
               </p>
               <div className="w-full bg-gray-200 rounded-full h-2.5">
                 <div 
                   className="bg-gradient-to-r from-yellow-400 to-pink-500 h-2.5 rounded-full" 
-                  style={{ width: "74%" }}
+                  style={{ width: `${platformData.privacyMetrics?.exposureScore
+                    ? Math.min(platformData.privacyMetrics.exposureScore, 100)
+                    : 0}%` }}
                 ></div>
               </div>
               <div className="w-full flex justify-between mt-1">
