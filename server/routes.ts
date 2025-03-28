@@ -3,7 +3,8 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { 
   SearchQuery, 
-  searchQuerySchema, 
+  searchQuerySchema,
+  searchQuerySchemaWithValidation,
   Platform, 
   platformEnum, 
   insertUserSchema,
@@ -49,20 +50,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Search for digital footprint
   apiRouter.post("/search", async (req: Request, res: Response) => {
     try {
-      // Parse and validate the search query
-      const searchQuery = searchQuerySchema.parse(req.body);
+      // Parse and validate the search query using the enhanced schema with validation
+      const searchQuery = searchQuerySchemaWithValidation.parse(req.body);
       
       // Process the search and get digital footprint data
-      const result = await storage.aggregateDigitalFootprint(
-        searchQuery.username,
-        searchQuery.platforms
-      );
+      const result = await storage.aggregateDigitalFootprint(searchQuery);
+      
+      // Determine username to save in history
+      const usernameForHistory = searchQuery.username || 
+        (searchQuery.platformUsernames && searchQuery.platformUsernames.length > 0 ? 
+          searchQuery.platformUsernames.map((pu: { platform: Platform, username: string }) => 
+            `${pu.platform}:${pu.username}`).join(', ') : 
+          "unknown");
       
       // Save the search to history (if user is authenticated)
       if (req.session?.userId) {
         await storage.saveSearch({
           userId: req.session.userId,
-          username: searchQuery.username,
+          username: usernameForHistory,
           platforms: searchQuery.platforms,
         });
       }

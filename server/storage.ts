@@ -4,7 +4,7 @@ import {
   DigitalFootprint, InsertDigitalFootprint,
   DeletionRequest, InsertDeletionRequest,
   Platform, PlatformData, DigitalFootprintResponse,
-  subscriptionPlansData
+  PlatformUsername, subscriptionPlansData
 } from "@shared/schema";
 import session from 'express-session';
 import createMemoryStore from 'memorystore';
@@ -39,7 +39,7 @@ export interface IStorage {
   
   // Platform data operations
   fetchPlatformData(username: string, platform: Platform): Promise<PlatformData | null>;
-  aggregateDigitalFootprint(username: string, platforms: Platform[]): Promise<DigitalFootprintResponse>;
+  aggregateDigitalFootprint(searchQuery: SearchQuery): Promise<DigitalFootprintResponse>;
   
   // Session store for express-session
   sessionStore: any; // Using any for now to avoid type issues
@@ -330,15 +330,33 @@ export class MemStorage implements IStorage {
     };
   }
   
-  async aggregateDigitalFootprint(username: string, platforms: Platform[]): Promise<DigitalFootprintResponse> {
+  async aggregateDigitalFootprint(searchQuery: SearchQuery): Promise<DigitalFootprintResponse> {
     // In a production environment, this would fetch real data from platforms
-    const platformsToFetch = platforms.includes("all") 
+    const platformsToFetch = searchQuery.platforms.includes("all") 
       ? ["instagram", "facebook", "reddit", "twitter", "linkedin"] as Platform[]
-      : platforms;
+      : searchQuery.platforms;
     
-    const platformDataPromises = platformsToFetch.map(platform => 
-      this.fetchPlatformData(username, platform)
-    );
+    // Determine which username to use for each platform
+    const platformDataPromises = platformsToFetch.map(platform => {
+      // Check if we have a platform-specific username
+      if (searchQuery.platformUsernames) {
+        const platformUsername = searchQuery.platformUsernames.find(
+          (pu: { platform: Platform, username: string }) => pu.platform === platform
+        );
+        if (platformUsername) {
+          // Use the platform-specific username if available
+          return this.fetchPlatformData(platformUsername.username, platform);
+        }
+      }
+      
+      // Fall back to the global username
+      if (searchQuery.username) {
+        return this.fetchPlatformData(searchQuery.username, platform);
+      }
+      
+      // If no username is available for this platform, return null
+      return Promise.resolve(null);
+    });
     
     const platformDataResults = await Promise.all(platformDataPromises);
     const validPlatformData = platformDataResults.filter(result => result !== null) as PlatformData[];
@@ -401,8 +419,15 @@ export class MemStorage implements IStorage {
     ];
     
     // Create the aggregated response
+    // Use the global username for the response, or create a composite username if only platform-specific ones exist
+    const responseUsername = searchQuery.username || 
+      (searchQuery.platformUsernames && searchQuery.platformUsernames.length > 0 ? 
+        searchQuery.platformUsernames.map((pu: { platform: Platform, username: string }) => 
+          `${pu.platform}:${pu.username}`).join(', ') : 
+        "unknown");
+        
     const response: DigitalFootprintResponse = {
-      username,
+      username: responseUsername,
       timestamp: new Date().toISOString(),
       platforms: platformsToFetch,
       platformData: validPlatformData,

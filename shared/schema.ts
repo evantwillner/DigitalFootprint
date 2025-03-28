@@ -37,11 +37,35 @@ export const platformEnum = z.enum([
 
 export type Platform = z.infer<typeof platformEnum>;
 
-// Search query schema
+// Schema for platform-specific username
+export type PlatformUsername = {
+  platform: Platform;
+  username: string;
+};
+
+// Search query schema with support for both simple and platform-specific usernames
 export const searchQuerySchema = z.object({
-  username: z.string().min(1, "Username is required"),
+  // For backwards compatibility and simple single-username searches
+  username: z.string().optional(),
+  
+  // New field for platform-specific usernames
+  platformUsernames: z.array(z.object({
+    platform: platformEnum,
+    username: z.string().min(1, "Username is required")
+  })).optional(),
+  
+  // Platforms to search
   platforms: z.array(platformEnum).min(1, "At least one platform must be selected"),
 });
+
+// Ensure at least username or platformUsernames is provided
+export const searchQuerySchemaWithValidation = searchQuerySchema.refine(
+  data => !!data.username || (!!data.platformUsernames && data.platformUsernames.length > 0),
+  {
+    message: "Either a global username or platform-specific usernames must be provided",
+    path: ["username"]
+  }
+);
 
 export type SearchQuery = z.infer<typeof searchQuerySchema>;
 
