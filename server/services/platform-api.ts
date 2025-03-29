@@ -2,7 +2,7 @@ import axios from 'axios';
 import { Platform, PlatformData } from '@shared/schema';
 import { twitterApi } from './twitter-api';
 import { redditApi } from './reddit-api';
-import { instagramApi } from './instagram-api';
+import { instagramApi } from './instagram-api-v2'; // Updated to use the improved v2 API
 import { log } from '../vite';
 
 /**

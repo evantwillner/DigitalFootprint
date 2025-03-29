@@ -14,6 +14,7 @@ import Checkout from "@/pages/checkout";
 import Subscribe from "@/pages/subscribe";
 import PaymentSuccess from "@/pages/payment-success";
 import SubscriptionSuccess from "@/pages/subscription-success";
+import SettingsPage from "@/pages/settings-page";
 import { ProtectedRoute } from "@/lib/protected-route";
 import { AuthProvider } from "@/hooks/use-auth";
 import AuthPage from "@/pages/auth-page";
@@ -54,6 +55,7 @@ function Router() {
         <ProtectedRoute path="/subscribe" component={Subscribe} />
         <ProtectedRoute path="/payment-success" component={PaymentSuccess} />
         <ProtectedRoute path="/subscription-success" component={SubscriptionSuccess} />
+        <ProtectedRoute path="/settings" component={SettingsPage} />
         {/* Add any additional routes here */}
         <Route component={NotFound} />
       </Switch>

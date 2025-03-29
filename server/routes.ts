@@ -244,7 +244,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Lazy-load the API services to avoid circular dependencies
       const { twitterApi } = await import('./services/twitter-api');
       const { redditApi } = await import('./services/reddit-api');
-      const { instagramApi } = await import('./services/instagram-api');
+      const { instagramApi } = await import('./services/instagram-api-v2');
+      const { instagramOAuth } = await import('./services/instagram-oauth');
       
       const status = {
         twitter: {
@@ -259,6 +260,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         facebook: {
           configured: false,
           message: "Facebook API integration is coming soon"
+        },
+        instagram_oauth: {
+          configured: instagramOAuth.isConfigured(),
+          message: instagramOAuth.isConfigured() 
+            ? (instagramOAuth.hasValidToken() 
+              ? "Instagram OAuth configured with valid token" 
+              : "Instagram OAuth configured but needs authorization")
+            : "Instagram OAuth not configured"
         }
       };
       
@@ -456,6 +465,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(500).json({ 
         message: "Error creating subscription", 
         error: error.message 
+      });
+    }
+  });
+
+  // Instagram OAuth routes
+  apiRouter.get("/instagram/auth", async (_req: Request, res: Response) => {
+    try {
+      // Use dynamic import to avoid circular dependencies
+      const { instagramOAuth } = await import('./services/instagram-oauth');
+      
+      if (!instagramOAuth.isConfigured()) {
+        return res.status(500).json({
+          success: false,
+          message: "Instagram OAuth is not properly configured"
+        });
+      }
+      
+      // Get the authorization URL and redirect the user
+      const authUrl = instagramOAuth.getAuthorizationUrl();
+      return res.redirect(authUrl);
+    } catch (error: any) {
+      console.error("Instagram auth error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Error initiating Instagram authorization",
+        error: error.message
+      });
+    }
+  });
+  
+  apiRouter.get("/instagram/callback", async (req: Request, res: Response) => {
+    try {
+      const { code } = req.query;
+      
+      if (!code || typeof code !== 'string') {
+        return res.status(400).json({
+          success: false,
+          message: "Authorization code is missing"
+        });
+      }
+      
+      // Use dynamic import to avoid circular dependencies
+      const { instagramOAuth } = await import('./services/instagram-oauth');
+      
+      // Exchange code for token
+      const tokenResponse = await instagramOAuth.exchangeCodeForToken(code);
+      
+      // Get a long-lived token
+      const longLivedToken = await instagramOAuth.getLongLivedToken(tokenResponse.accessToken);
+      
+      // Redirect to a success page or return JSON based on the client's needs
+      return res.json({
+        success: true,
+        message: "Instagram authorization successful",
+        expiresIn: longLivedToken.expiresIn
+      });
+    } catch (error: any) {
+      console.error("Instagram callback error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Error processing Instagram authorization",
+        error: error.message
+      });
+    }
+  });
+  
+  // Check Instagram login status
+  apiRouter.get("/instagram/status", async (_req: Request, res: Response) => {
+    try {
+      // Use dynamic import to avoid circular dependencies
+      const { instagramOAuth } = await import('./services/instagram-oauth');
+      
+      return res.json({
+        configured: instagramOAuth.isConfigured(),
+        hasValidToken: instagramOAuth.hasValidToken(),
+        needsAuthorization: instagramOAuth.isConfigured() && !instagramOAuth.hasValidToken(),
+        authorizeUrl: instagramOAuth.isConfigured() ? instagramOAuth.getAuthorizationUrl() : null
+      });
+    } catch (error: any) {
+      console.error("Instagram status error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Error checking Instagram authorization status",
+        error: error.message
       });
     }
   });
