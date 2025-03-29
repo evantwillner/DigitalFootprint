@@ -203,12 +203,22 @@ export class InstagramApiService {
         postsPerDay: 0, // Would need to calculate based on post history
         mostActiveTime: "Unknown", // Not directly available via API
         lastActive: new Date().toISOString(), // Not directly available via API
-        topHashtags: [] // Need to extract from captions
+        topHashtags: [] as string[] // Need to extract from captions
       };
       
       // Process media items (posts)
       const media = businessDiscovery.media?.data || [];
-      const contentData = media.map((item: any) => {
+      
+      // Handle accounts with no posts
+      if (media.length === 0) {
+        log(`Instagram user ${username} has no posts to analyze`, 'instagram-api');
+      }
+      
+      // Initialize contentData as empty array for accounts with no posts
+      let contentData: any[] = [];
+      
+      if (media.length > 0) {
+        contentData = media.map((item: any) => {
         // Update totals
         activityData.totalLikes += item.like_count || 0;
         activityData.totalComments += item.comments_count || 0;
@@ -220,7 +230,7 @@ export class InstagramApiService {
         if (item.caption) {
           const matches = item.caption.match(hashtagRegex);
           if (matches) {
-            matches.forEach(tag => {
+            matches.forEach((tag: string) => {
               hashtags.push(tag);
               // Add unique hashtags to topHashtags
               if (!activityData.topHashtags.includes(tag)) {
@@ -466,7 +476,7 @@ export class InstagramApiService {
       if (item.caption) {
         const matches = item.caption.match(hashtagRegex);
         if (matches) {
-          matches.forEach((tag) => {
+          matches.forEach((tag: string) => {
             hashtagCounts[tag] = (hashtagCounts[tag] || 0) + 1;
           });
         }
