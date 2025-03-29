@@ -94,15 +94,15 @@ export class InstagramApiService {
       
       // Check if we have credentials
       if (!this.hasValidCredentials()) {
-        log('No Instagram Graph API credentials - using simulated data', 'instagram-api');
-        return this.simulateUserData(username);
+        log('No Instagram Graph API credentials - no data available', 'instagram-api');
+        return null;
       }
       
       // Authenticate with the Graph API
       const authenticated = await this.authenticate();
       if (!authenticated) {
-        log('Instagram Graph API authentication failed - using simulated data', 'instagram-api');
-        return this.simulateUserData(username);
+        log('Instagram Graph API authentication failed - no data available', 'instagram-api');
+        return null;
       }
       
       try {
@@ -129,7 +129,7 @@ export class InstagramApiService {
         
         if (!instagramBusinessAccountId) {
           log('No Instagram Business Account connected to this token. Cannot perform business discovery.', 'instagram-api');
-          return this.simulateUserData(username);
+          return null;
         }
         
         // Use Business Discovery API to get profile info for the target username
@@ -147,11 +147,17 @@ export class InstagramApiService {
         
         if (!businessDiscovery) {
           log(`Instagram Business Discovery API could not find user: ${username}`, 'instagram-api');
-          return this.simulateUserData(username);
+          return null;
         }
         
         // Transform the data into our PlatformData structure
-        return this.transformApiResponseToPlatformData(businessDiscovery, username);
+        try {
+          return this.transformApiResponseToPlatformData(businessDiscovery, username);
+        } catch (transformError) {
+          log(`Error transforming Instagram data: ${transformError}`, 'instagram-api');
+          console.error('Error in transformApiResponseToPlatformData:', transformError);
+          return null;
+        }
         
       } catch (apiError: any) {
         log(`Instagram Graph API request failed: ${apiError.message}`, 'instagram-api');
@@ -162,12 +168,13 @@ export class InstagramApiService {
           log(`Instagram API error: ${apiError.response.data.error.message}`, 'instagram-api');
         }
         
-        // Fall back to simulated data if the API request fails
-        return this.simulateUserData(username);
+        // Return null to indicate no data is available
+        return null;
       }
       
     } catch (error) {
       console.error(`Error fetching Instagram data via Graph API for ${username}:`, error);
+      // Return null to indicate no data is available
       return null;
     }
   }
@@ -179,7 +186,6 @@ export class InstagramApiService {
    * @returns Formatted PlatformData object
    */
   private transformApiResponseToPlatformData(businessDiscovery: any, username: string): PlatformData {
-    try {
       log(`Transforming Instagram API data for ${username}`, 'instagram-api');
       
       // Extract basic profile data
@@ -397,10 +403,6 @@ export class InstagramApiService {
           }
         }
       };
-    } catch (error) {
-      console.error('Error transforming Instagram data:', error);
-      return this.simulateUserData(username); // Fallback to simulation if transformation fails
-    }
   }
   
   /**
