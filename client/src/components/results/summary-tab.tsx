@@ -179,6 +179,29 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
   const primaryPlatform = availablePlatforms[0];
   const primaryPlatformData = data.platformData[0];
   
+  // Instagram-specific stats
+  let instagramSpecificStats = {
+    followerCount: 0,
+    followingCount: 0,
+    totalPosts: 0,
+    engagementRate: 0,
+    contentTypesBreakdown: {} as Record<string, number>,
+    joinDate: "",
+    exposureScore: 0
+  };
+  
+  if (instagramData) {
+    instagramSpecificStats.followerCount = instagramData.profileData?.followerCount || 0;
+    instagramSpecificStats.followingCount = instagramData.profileData?.followingCount || 0;
+    instagramSpecificStats.totalPosts = instagramData.activityData?.totalPosts || 0;
+    instagramSpecificStats.engagementRate = 
+      instagramData.analysisResults?.platformSpecificMetrics?.engagementRate as number || 0;
+    instagramSpecificStats.contentTypesBreakdown = 
+      instagramData.analysisResults?.platformSpecificMetrics?.contentBreakdown as Record<string, number> || {};
+    instagramSpecificStats.joinDate = instagramData.profileData?.joinDate || "";
+    instagramSpecificStats.exposureScore = instagramData.privacyMetrics?.exposureScore || 0;
+  }
+  
   // Prepare sentiment data
   let sentimentData = [
     { name: "Positive", value: 30 },
@@ -365,6 +388,77 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
     ];
   }
 
+  // Generate Instagram-specific insights if Instagram data is available
+  let instagramInsights: {insight: string, type: "info" | "warning"}[] = [];
+  let instagramRecommendations: string[] = [];
+  
+  if (instagramData) {
+    // Add insight about follower count
+    instagramInsights.push({
+      insight: `Instagram account has ${instagramSpecificStats.followerCount.toLocaleString()} followers and ${instagramSpecificStats.followingCount.toLocaleString()} following.`,
+      type: "info"
+    });
+    
+    // Add insight about post count
+    instagramInsights.push({
+      insight: `Account has published ${instagramSpecificStats.totalPosts.toLocaleString()} posts on Instagram.`,
+      type: "info"
+    });
+    
+    // Add insights based on follower count
+    if (instagramSpecificStats.followerCount > 10000) {
+      instagramInsights.push({
+        insight: "Large follower count increases visibility of your content and personal information.",
+        type: "warning"
+      });
+      instagramRecommendations.push("Review your Instagram privacy settings to control who can see your stories and posts.");
+    }
+    
+    // Add insights based on engagement rate
+    if (instagramSpecificStats.engagementRate > 5) {
+      instagramInsights.push({
+        insight: `High engagement rate (${instagramSpecificStats.engagementRate.toFixed(1)}%) indicates active audience interaction with your content.`,
+        type: "warning"
+      });
+      instagramRecommendations.push("Consider limiting comments on posts that contain personal information.");
+    } else if (instagramSpecificStats.engagementRate < 1) {
+      instagramInsights.push({
+        insight: `Low engagement rate (${instagramSpecificStats.engagementRate.toFixed(1)}%) suggests limited audience interaction.`,
+        type: "info"
+      });
+    }
+    
+    // Add insights based on exposure score
+    if (instagramSpecificStats.exposureScore > 70) {
+      instagramInsights.push({
+        insight: "High exposure score indicates significant personal information visible on Instagram.",
+        type: "warning"
+      });
+      instagramRecommendations.push("Audit your Instagram content for personally identifiable information in captions and photos.");
+    }
+    
+    // Add insights about content types
+    const contentTypes = instagramSpecificStats.contentTypesBreakdown;
+    if (contentTypes.photos > 0.6) {
+      instagramInsights.push({
+        insight: "Account primarily shares photos, which may contain metadata revealing locations and devices.",
+        type: "warning"
+      });
+      instagramRecommendations.push("Check that location tagging is disabled for sensitive posts.");
+    }
+    
+    if (contentTypes.videos > 0.3) {
+      instagramInsights.push({
+        insight: "Significant video content may reveal additional context about your personal life.",
+        type: "warning"
+      });
+    }
+    
+    // Add Instagram-specific privacy recommendations
+    instagramRecommendations.push("Consider switching to a private Instagram account to control who can view your content.");
+    instagramRecommendations.push("Regularly review and update tagged photos, as these can reveal your location and social connections.");
+  }
+  
   // Generate Reddit-specific insights if Reddit data is available
   let redditInsights: {insight: string, type: "info" | "warning"}[] = [];
   let redditRecommendations: string[] = [];
@@ -522,6 +616,25 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
               </div>
             }
           />
+        ) : instagramData ? (
+          <StatCard 
+            title="Instagram Stats" 
+            value={instagramSpecificStats.followerCount.toLocaleString()} 
+            subValue="followers" 
+            description="Social reach and engagement"
+            additional={
+              <div className="grid grid-cols-2 gap-1 text-center">
+                <div>
+                  <p className="text-xs text-gray-600">Posts</p>
+                  <p className="font-medium text-gray-800">{instagramSpecificStats.totalPosts.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-600">Engagement</p>
+                  <p className="font-medium text-gray-800">{instagramSpecificStats.engagementRate.toFixed(1)}%</p>
+                </div>
+              </div>
+            }
+          />
         ) : (
           <StatCard 
             title="Content Summary" 
@@ -546,14 +659,43 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
             </p>
 
             {/* Generalized insights component that can handle any platform */}
-            <InsightsDisplay 
-              insights={redditInsights} 
-              emptyMessage={`No insights available for this ${
-                availablePlatforms.length === 1 
-                  ? PLATFORM_CONFIG[availablePlatforms[0]].name 
-                  : 'account'
-              }.`} 
-            />
+            {instagramData && (
+              <div className="mb-6">
+                <h4 className="text-md font-medium mb-2 flex items-center">
+                  <span className="mr-2 text-[#E1306C]">{PLATFORM_CONFIG.instagram.icon}</span>
+                  Instagram Insights
+                </h4>
+                <InsightsDisplay 
+                  insights={instagramInsights} 
+                  emptyMessage={`No insights available for this Instagram account.`} 
+                />
+              </div>
+            )}
+            
+            {redditData && (
+              <div className="mb-6">
+                <h4 className="text-md font-medium mb-2 flex items-center">
+                  <span className="mr-2 text-[#FF4500]">{PLATFORM_CONFIG.reddit.icon}</span>
+                  Reddit Insights
+                </h4>
+                <InsightsDisplay 
+                  insights={redditInsights} 
+                  emptyMessage={`No insights available for this Reddit account.`} 
+                />
+              </div>
+            )}
+            
+            {/* Fallback if no specific platform insights are available */}
+            {!instagramData && !redditData && (
+              <InsightsDisplay 
+                insights={[]} 
+                emptyMessage={`No insights available for this ${
+                  availablePlatforms.length === 1 
+                    ? PLATFORM_CONFIG[availablePlatforms[0]].name 
+                    : 'account'
+                }.`} 
+              />
+            )}
           </CardContent>
         </Card>
       </div>
@@ -640,6 +782,105 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
                             {redditRecommendations.map((recommendation, index) => (
                               <li key={index} className="flex items-start">
                                 <span className="mr-2 mt-0.5 text-primary">
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                                  </svg>
+                                </span>
+                                <span>{recommendation}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </>
+                  );
+                }
+                
+                // Instagram-specific account details
+                if (instagramData) {
+                  // Format join date
+                  const joinDate = instagramSpecificStats.joinDate ? 
+                    new Date(instagramSpecificStats.joinDate).toLocaleDateString(undefined, { 
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    }) : 'Unknown';
+                  
+                  return (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="border rounded-lg p-4">
+                          <h4 className="text-sm font-medium text-gray-500 mb-1">Followers</h4>
+                          <p className="text-xl font-semibold">{instagramSpecificStats.followerCount.toLocaleString()}</p>
+                          <p className="text-sm text-gray-500 mt-1">Social Reach</p>
+                        </div>
+
+                        <div className="border rounded-lg p-4">
+                          <h4 className="text-sm font-medium text-gray-500 mb-1">Following</h4>
+                          <p className="text-xl font-semibold">{instagramSpecificStats.followingCount.toLocaleString()}</p>
+                          <p className="text-sm text-gray-500 mt-1">Accounts followed</p>
+                        </div>
+
+                        <div className="border rounded-lg p-4">
+                          <h4 className="text-sm font-medium text-gray-500 mb-1">Total Posts</h4>
+                          <p className="text-xl font-semibold">{instagramSpecificStats.totalPosts.toLocaleString()}</p>
+                          <p className="text-sm text-gray-500 mt-1">Published content</p>
+                        </div>
+                        
+                        <div className="border rounded-lg p-4">
+                          <h4 className="text-sm font-medium text-gray-500 mb-1">Engagement Rate</h4>
+                          <p className="text-xl font-semibold">{instagramSpecificStats.engagementRate.toFixed(1)}%</p>
+                          <p className="text-sm text-gray-500 mt-1">{
+                            instagramSpecificStats.engagementRate > 3.5
+                              ? "Above average engagement" 
+                              : instagramSpecificStats.engagementRate > 1.5
+                                ? "Average engagement"
+                                : "Below average engagement"
+                          }</p>
+                        </div>
+                        
+                        <div className="border rounded-lg p-4">
+                          <h4 className="text-sm font-medium text-gray-500 mb-1">Content Types</h4>
+                          <div className="mt-2">
+                            {Object.entries(instagramSpecificStats.contentTypesBreakdown).length > 0 ? (
+                              <div className="space-y-2">
+                                {Object.entries(instagramSpecificStats.contentTypesBreakdown).map(([type, percentage], index) => {
+                                  // Skip if percentage is 0
+                                  if (percentage === 0) return null;
+                                  return (
+                                    <div key={index} className="flex items-center justify-between">
+                                      <span className="text-sm capitalize">{type}</span>
+                                      <span className="text-sm font-medium">{Math.round(percentage * 100)}%</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <p className="text-gray-500">No content type data available</p>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="border rounded-lg p-4">
+                          <h4 className="text-sm font-medium text-gray-500 mb-1">Exposure Score</h4>
+                          <p className="text-xl font-semibold">{instagramSpecificStats.exposureScore}/100</p>
+                          <p className="text-sm text-gray-500 mt-1">{
+                            instagramSpecificStats.exposureScore > 70
+                              ? "High digital visibility"
+                              : instagramSpecificStats.exposureScore > 40
+                                ? "Moderate digital visibility"
+                                : "Low digital visibility"
+                          }</p>
+                        </div>
+                      </div>
+                      
+                      {instagramRecommendations.length > 0 && (
+                        <div className="mt-6 border-t pt-6">
+                          <h4 className="text-base font-medium text-gray-900 mb-3">Instagram-Specific Recommendations</h4>
+                          <ul className="space-y-2">
+                            {instagramRecommendations.map((recommendation, index) => (
+                              <li key={index} className="flex items-start">
+                                <span className="mr-2 mt-0.5 text-[#E1306C]">
                                   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
                                   </svg>
