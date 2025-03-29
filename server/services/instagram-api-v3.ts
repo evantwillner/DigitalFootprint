@@ -25,6 +25,82 @@ export class InstagramApiServiceV3 {
   }
   
   /**
+   * Helper method to get a value from a nested object using a dot-path notation
+   * Also supports array indices as [index]
+   * @param obj Object to extract value from
+   * @param path Path in dot notation, e.g., 'user.profile.name' or 'data.[0].user'
+   * @returns The value at the path or undefined if not found
+   */
+  private getValueByPath(obj: any, path: string): any {
+    if (!obj || !path) return undefined;
+    
+    // Split the path by dots, but handle array notation specially
+    const parts: string[] = [];
+    let currentPart = '';
+    let inBrackets = false;
+    
+    for (let i = 0; i < path.length; i++) {
+      const char = path[i];
+      
+      if (char === '.' && !inBrackets) {
+        if (currentPart) {
+          parts.push(currentPart);
+          currentPart = '';
+        }
+      } else if (char === '[') {
+        if (currentPart) {
+          parts.push(currentPart);
+          currentPart = '';
+        }
+        inBrackets = true;
+        currentPart += char;
+      } else if (char === ']') {
+        currentPart += char;
+        inBrackets = false;
+      } else {
+        currentPart += char;
+      }
+    }
+    
+    if (currentPart) {
+      parts.push(currentPart);
+    }
+    
+    // Traverse the object using the path parts
+    let current = obj;
+    
+    for (const part of parts) {
+      if (part.includes('[') && part.includes(']')) {
+        // Handle array access
+        const indexMatch = part.match(/\[(\d+)\]/);
+        if (indexMatch) {
+          const index = parseInt(indexMatch[1], 10);
+          const arrayName = part.split('[')[0];
+          
+          // If we have an array name, first access that property
+          if (arrayName && current[arrayName] !== undefined) {
+            current = current[arrayName];
+          }
+          
+          // Then access the array index
+          if (Array.isArray(current) && index < current.length) {
+            current = current[index];
+          } else {
+            return undefined;
+          }
+        }
+      } else if (current[part] !== undefined) {
+        // Standard property access
+        current = current[part];
+      } else {
+        return undefined;
+      }
+    }
+    
+    return current;
+  }
+  
+  /**
    * Check if the service has valid credentials
    */
   public hasValidCredentials(): boolean {
@@ -344,65 +420,118 @@ export class InstagramApiServiceV3 {
    */
   private async fetchViaPublicProfile(username: string): Promise<PlatformData | null> {
     try {
-      // First try to get JSON data embedded in the page
-      const response = await axios.get(`https://www.instagram.com/${username}/?__a=1&__d=dis`, {
+      // Use a more modern approach for fetching Instagram profiles
+      // Instagram now uses GraphQL for their public API
+      const graphqlUrl = `https://www.instagram.com/graphql/query/?query_hash=c9100bf9110dd6361671f113dd02e7d6&variables={"username":"${username}","include_reel":true,"include_logged_out":true}`;
+      
+      const response = await axios.get(graphqlUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.5',
-          'DNT': '1',
-          'Connection': 'keep-alive',
-          'Upgrade-Insecure-Requests': '1'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Accept': 'application/json',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Referer': 'https://www.instagram.com/',
+          'X-IG-App-ID': '936619743392459',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+          'Sec-Fetch-Dest': 'empty',
+          'Sec-Fetch-Mode': 'cors',
+          'Sec-Fetch-Site': 'same-origin'
+        }
+      });
+      
+      // Check if we got valid data from GraphQL
+      if (response.data?.data?.user) {
+        log(`Successfully retrieved GraphQL data for Instagram user ${username}`, 'instagram-api');
+        return this.transformPublicData(response.data.data.user, username);
+      }
+      
+      // If GraphQL approach didn't work, try the old method for JSON data embedded in the page
+      log(`GraphQL approach failed for ${username}, trying alternative methods`, 'instagram-api');
+      
+      const jsonResponse = await axios.get(`https://www.instagram.com/${username}/?__a=1&__d=dis`, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/json',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Cache-Control': 'no-cache'
         }
       });
       
       // Check if we got data
-      if (response.data && response.data.graphql && response.data.graphql.user) {
-        log(`Successfully retrieved public data for Instagram user ${username}`, 'instagram-api');
-        return this.transformPublicData(response.data.graphql.user, username);
+      if (jsonResponse.data?.graphql?.user) {
+        log(`Successfully retrieved embedded JSON data for Instagram user ${username}`, 'instagram-api');
+        return this.transformPublicData(jsonResponse.data.graphql.user, username);
       }
       
-      // If the above didn't work, try direct HTML scraping as fallback
-      // This approach is more brittle but can work as a last resort
+      // Try direct HTML scraping as a last resort
       const htmlResponse = await axios.get(`https://www.instagram.com/${username}/`, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Sec-CH-UA': '"Chromium";v="122", "Google Chrome";v="122"',
+          'Sec-CH-UA-Mobile': '?0',
+          'Sec-CH-UA-Platform': '"Windows"',
+          'Sec-Fetch-Dest': 'document',
+          'Sec-Fetch-Mode': 'navigate',
+          'Sec-Fetch-Site': 'none',
+          'Sec-Fetch-User': '?1',
         }
       });
       
-      // Look for JSON data in the HTML
       const html = htmlResponse.data;
-      const jsonDataMatch = html.match(/<script type="text\/javascript">window\._sharedData = (.+?);<\/script>/);
       
-      if (jsonDataMatch && jsonDataMatch[1]) {
-        const sharedData = JSON.parse(jsonDataMatch[1]);
-        const userData = sharedData.entry_data?.ProfilePage?.[0]?.graphql?.user;
-        
-        if (userData) {
-          log(`Successfully extracted profile data from HTML for Instagram user ${username}`, 'instagram-api');
-          return this.transformPublicData(userData, username);
-        }
-      }
-      
-      // Check for alternate JSON data format
-      const alternateMatch = html.match(/<script type="application\/json" data-sjs>(.+?)<\/script>/);
-      if (alternateMatch && alternateMatch[1]) {
+      // Check for modern data structure
+      const modernDataMatch = html.match(/<script type="application\/json" data-sjs>(.+?)<\/script>/);
+      if (modernDataMatch && modernDataMatch[1]) {
         try {
-          const parsedData = JSON.parse(alternateMatch[1]);
-          // Navigate the complex structure to find user data
-          const userData = parsedData?.require?.[0]?.[3]?.[0]?.['__bbox']?.['require']?.[0]?.[3]?.[0]?.['__bbox']?.['result']?.['data']?.['user'];
+          const parsedData = JSON.parse(modernDataMatch[1]);
+          // Try multiple paths to find user data
+          let userData = null;
+          
+          // First attempt - new path
+          userData = parsedData?.require?.[0]?.[3]?.[0]?.['__bbox']?.['require']?.[0]?.[3]?.[0]?.['__bbox']?.['result']?.['data']?.['user'];
+          
+          // Second attempt - alternative path
+          if (!userData) {
+            const userDataPaths = [
+              'require.[0].data.user',
+              'require.[0].data.[3].user',
+              'require.[0].[3].[0].__bbox.require.[0].[3].[0].__bbox.result.data.user'
+            ];
+            
+            for (const path of userDataPaths) {
+              userData = this.getValueByPath(parsedData, path);
+              if (userData) break;
+            }
+          }
           
           if (userData) {
-            log(`Successfully extracted alternate profile data for Instagram user ${username}`, 'instagram-api');
+            log(`Successfully extracted modern profile data for Instagram user ${username}`, 'instagram-api');
             return this.transformPublicData(userData, username);
           }
         } catch (parseError) {
-          log(`Error parsing alternate JSON data: ${parseError}`, 'instagram-api');
+          log(`Error parsing modern JSON data: ${parseError}`, 'instagram-api');
         }
       }
       
-      // If we couldn't extract detailed data but the page exists, return minimal data
+      // Try older _sharedData format
+      const jsonDataMatch = html.match(/<script type="text\/javascript">window\._sharedData = (.+?);<\/script>/);
+      if (jsonDataMatch && jsonDataMatch[1]) {
+        try {
+          const sharedData = JSON.parse(jsonDataMatch[1]);
+          const userData = sharedData.entry_data?.ProfilePage?.[0]?.graphql?.user;
+          
+          if (userData) {
+            log(`Successfully extracted legacy profile data for Instagram user ${username}`, 'instagram-api');
+            return this.transformPublicData(userData, username);
+          }
+        } catch (parseError) {
+          log(`Error parsing legacy JSON data: ${parseError}`, 'instagram-api');
+        }
+      }
+      
+      // If we found the profile exists but couldn't extract data
       if (html.includes(`@${username}`) || html.includes(`"alternateName":"${username}"`)) {
         log(`Found Instagram profile for ${username} but couldn't extract detailed data`, 'instagram-api');
         

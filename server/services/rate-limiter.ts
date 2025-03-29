@@ -229,7 +229,7 @@ export class RateLimiter {
 // Instagram Graph API has a rate limit of ~200 requests per user per hour
 export const instagramRateLimiter = new RateLimiter({
   maxTokens: 100,       // Start with 100 tokens
-  refillRate: 0.05,     // ~180 requests per hour (3 per minute)
+  refillRate: 1,        // ~360 requests per hour (6 per minute)
   refillInterval: 10000  // Refill every 10 seconds
 });
 
