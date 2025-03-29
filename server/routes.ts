@@ -244,18 +244,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Lazy-load the API services to avoid circular dependencies
       const { twitterApi } = await import('./services/twitter-api');
       const { redditApi } = await import('./services/reddit-api');
-      const { instagramApi } = await import('./services/instagram-api-v2');
+      const { platformApi } = await import('./services/platform-api');
       const { instagramOAuth } = await import('./services/instagram-oauth');
+      
+      // Get cache stats and rate limiter info for UI display
+      const { cacheService } = await import('./services/cache-service');
+      const { rateLimiters } = await import('./services/rate-limiter');
+      
+      const cacheStats = cacheService.platformData.getStats();
+      const instagramRateLimits = rateLimiters.instagram.getStats();
       
       const status = {
         twitter: {
           configured: twitterApi.hasValidCredentials(),
-          message: twitterApi.hasValidCredentials() 
-            ? "Twitter API is properly configured" 
-            : "Twitter API requires credentials. Data will be simulated."
+          message: twitterApi.getApiStatus().message
         },
         reddit: redditApi.getApiStatus(),
-        instagram: instagramApi.getApiStatus(),
+        instagram: platformApi.getPlatformStatus().instagram,
         // Add other platforms as they're implemented
         facebook: {
           configured: false,
@@ -268,6 +273,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
               ? "Instagram OAuth configured with valid token" 
               : "Instagram OAuth configured but needs authorization")
             : "Instagram OAuth not configured"
+        },
+        system: {
+          cache: {
+            size: cacheStats.size,
+            maxSize: cacheStats.maxSize,
+            utilization: Math.round(cacheStats.utilization * 100)
+          },
+          rateLimiter: {
+            instagram: {
+              availableTokens: instagramRateLimits.availableTokens,
+              maxTokens: instagramRateLimits.maxTokens,
+              queueLength: instagramRateLimits.queueLength,
+              requestCount: instagramRateLimits.platformCounts.instagram || 0
+            }
+          }
         }
       };
       

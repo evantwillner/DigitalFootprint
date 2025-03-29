@@ -1,314 +1,274 @@
+/**
+ * Instagram API Integration Service (V3)
+ * 
+ * Enhanced version with caching and rate limiting for high traffic scenarios.
+ * This service combines multiple approaches to retrieve Instagram data reliably
+ * while respecting API rate limits and optimizing for performance.
+ */
+
 import axios from 'axios';
-import { PlatformData, Platform } from '@shared/schema';
+import { Platform, PlatformData, platformDataSchema } from '@shared/schema';
 import { log } from '../vite';
+import { cacheService } from './cache-service';
+import { rateLimiters } from './rate-limiter';
 import { instagramOAuth } from './instagram-oauth';
 
-/**
- * Instagram API Integration Service with support for different account types
- * 
- * This service combines multiple approaches to retrieve Instagram data:
- * 1. Instagram Graph API (for business/creator accounts)
- * 2. Public Data API endpoints (for any public Instagram account)
- * 3. Instagram Basic Display API (for personal accounts with OAuth authorization)
- */
-export class InstagramApiService {
+export class InstagramApiServiceV3 {
+  private readonly CACHE_TTL = {
+    DEFAULT: 3600000,    // 1 hour
+    POPULAR: 7200000,    // 2 hours for popular accounts
+    ERROR: 300000        // 5 minutes for error responses
+  };
+  
   constructor() {
-    // Constructor is now minimal as the OAuth service handles token management
-    log('Instagram API service initialized', 'instagram-api');
+    log('Instagram API Service V3 initialized with caching and rate limiting', 'instagram-api');
   }
-
+  
   /**
    * Check if the service has valid credentials
    */
   public hasValidCredentials(): boolean {
-    // Either we have a valid token through the OAuth service
-    // or the OAuth service itself is properly configured for auth flow
-    return instagramOAuth.hasValidToken() || instagramOAuth.isConfigured();
+    // Check for access token from OAuth
+    if (instagramOAuth.getAccessToken()) {
+      return true;
+    }
+    
+    // Check for INSTAGRAM_ACCESS_TOKEN in environment
+    if (process.env.INSTAGRAM_ACCESS_TOKEN) {
+      return true;
+    }
+    
+    return false;
   }
-
+  
   /**
    * Get API status - used to show which platforms have active connections
    */
   public getApiStatus(): { configured: boolean; message: string } {
     if (this.hasValidCredentials()) {
-      return { 
-        configured: true, 
-        message: "Instagram API connection configured and ready" 
-      };
-    } else {
-      return { 
-        configured: false, 
-        message: "Instagram API connection not configured. Required credentials missing." 
+      const tokenType = instagramOAuth.getAccessToken() 
+        ? 'OAuth' 
+        : 'API Key';
+      
+      // Get rate limiter stats
+      const stats = rateLimiters.instagram.getStats();
+      
+      return {
+        configured: true,
+        message: `Instagram ${tokenType} configured. ${stats.availableTokens}/${stats.maxTokens} API calls available.`
       };
     }
+    
+    return {
+      configured: false,
+      message: 'Instagram API not configured. Please set up OAuth or API key.'
+    };
   }
-
+  
   /**
-   * Fetch user data from Instagram using available methods
+   * Fetch user data from Instagram using available methods with caching and rate limiting
    * @param username Instagram username to look up (with or without @)
    * @returns Platform data or null if not found
    */
   public async fetchUserData(username: string): Promise<PlatformData | null> {
-    // Remove @ if present
-    username = username.replace('@', '');
+    // Normalize username (remove @ if present)
+    const normalizedUsername = username.startsWith('@') 
+      ? username.substring(1) 
+      : username;
     
-    log(`Fetching Instagram data for ${username}`, 'instagram-api');
+    // Generate cache key
+    const cacheKey = `instagram:${normalizedUsername}`;
     
-    // Track whether any approach was successful
-    let publicProfileExists = false;
+    // Check cache first
+    const cachedData = cacheService.platformData.get(cacheKey);
+    if (cachedData) {
+      log(`Using cached data for Instagram user ${normalizedUsername}`, 'instagram-api');
+      return cachedData;
+    }
     
+    // Data not in cache, request it with rate limiting
     try {
-      // First, quickly check if the public profile exists
-      try {
-        // Use a HEAD request to see if the profile exists
-        const profileUrl = `https://www.instagram.com/${username}/`;
-        await axios.head(profileUrl, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-          },
-          timeout: 5000
-        });
-        
-        // If we got here, the profile exists
-        publicProfileExists = true;
-        log(`Confirmed Instagram profile exists for ${username}`, 'instagram-api');
-      } catch (headError: any) {
-        // If we got a 404, the profile definitely doesn't exist
-        if (headError.response?.status === 404) {
-          log(`Instagram profile definitely does not exist for ${username} (404)`, 'instagram-api');
-          return null;
+      log(`Fetching Instagram data for ${normalizedUsername} with rate limiting`, 'instagram-api');
+      
+      // Schedule the fetch through the rate limiter
+      const result = await rateLimiters.instagram.schedule({
+        execute: () => this.executeDataFetch(normalizedUsername),
+        platform: 'instagram',
+        username: normalizedUsername,
+        // Higher priority for authenticated requests
+        priority: instagramOAuth.getAccessToken() ? 2 : 1
+      });
+      
+      // If we got results, cache them
+      if (result) {
+        // Determine cache TTL based on follower count
+        let cacheTtl = this.CACHE_TTL.DEFAULT;
+        if (result.profileData && result.profileData.followerCount && result.profileData.followerCount > 10000) {
+          // Popular accounts change less frequently, cache longer
+          cacheTtl = this.CACHE_TTL.POPULAR;
         }
         
-        // Other errors (rate limiting, etc.) - we'll continue with other methods
-        log(`Could not confirm if Instagram profile exists for ${username}, trying other methods`, 'instagram-api');
+        cacheService.platformData.set(cacheKey, result, cacheTtl);
       }
       
-      // Try different approaches in order of reliability
+      return result;
+    } catch (error: any) {
+      log(`Error fetching Instagram data for ${normalizedUsername}: ${error.message}`, 'instagram-api');
       
-      // 1. First try Graph API if we have access token via OAuth
-      const accessToken = instagramOAuth.getAccessToken();
-      if (accessToken) {
-        try {
-          const graphApiData = await this.fetchViaGraphApi(username, accessToken);
-          if (graphApiData) {
-            log(`Successfully retrieved data for ${username} via Graph API`, 'instagram-api');
-            return graphApiData;
-          }
-        } catch (error) {
-          log(`Error fetching via Graph API: ${error}`, 'instagram-api');
-          // Continue to next approach
-        }
-      } else {
-        log('No valid Instagram access token available from OAuth service', 'instagram-api');
+      // Cache error results too, but for a shorter time
+      // This prevents hammering the API with requests that are likely to fail
+      if (error.response && (error.response.status === 404 || error.response.status === 429)) {
+        const minimalErrorData = this.createMinimalErrorData(normalizedUsername, error);
+        cacheService.platformData.set(cacheKey, minimalErrorData, this.CACHE_TTL.ERROR);
+        return minimalErrorData;
       }
       
-      // 2. Try public data approach
-      try {
-        const publicData = await this.fetchViaPublicData(username);
-        if (publicData) {
-          log(`Successfully retrieved data for ${username} via public data`, 'instagram-api');
-          return publicData;
-        }
-      } catch (error) {
-        log(`Error fetching via public data: ${error}`, 'instagram-api');
-        // Continue to next approach
-      }
-      
-      // 3. Try Basic Display API if we have OAuth configured
-      if (instagramOAuth.isConfigured()) {
-        try {
-          const basicDisplayData = await this.fetchViaBasicDisplayApi(username);
-          if (basicDisplayData) {
-            log(`Successfully retrieved data for ${username} via Basic Display API`, 'instagram-api');
-            return basicDisplayData;
-          }
-        } catch (error) {
-          log(`Error fetching via Basic Display API: ${error}`, 'instagram-api');
-        }
-      }
-      
-      // If all methods fail but we confirmed the profile exists, return minimal data with additional info
-      if (publicProfileExists) {
-        log(`Profile exists for ${username}, but all data retrieval methods failed. Returning minimal data.`, 'instagram-api');
-        
-        // For celebrity profiles, we can provide some more accurate information
-        // These are well-known individuals with public information
-        let profileInfo: { 
-          displayName: string; 
-          followerCount: number; 
-          isVerified?: boolean;
-          bio?: string;
-          knownFor?: string;
-        } | null = null;
-        
-        // Match some common well-known profiles
-        // This is public information only, based on publicly available data
-        const username_lower = username.toLowerCase();
-        
-        if (username_lower === 'victoriajustice') {
-          profileInfo = {
-            displayName: 'Victoria Justice',
-            followerCount: 24000000, // approximate, public info
-            isVerified: true,
-            bio: "Actor • Musician",
-            knownFor: "Nickelodeon's Victorious, Eye Candy, music career"
-          };
-        } else if (username_lower === 'arianagrande') {
-          profileInfo = {
-            displayName: 'Ariana Grande',
-            followerCount: 378000000, // approximate, public info
-            isVerified: true,
-            bio: "Singer • Actor",
-            knownFor: "Music career, Grammy awards, Nickelodeon shows"
-          };
-        } else if (username_lower === 'beyonce') {
-          profileInfo = {
-            displayName: 'Beyoncé',
-            followerCount: 310000000, // approximate, public info
-            isVerified: true,
-            bio: "🐝",
-            knownFor: "Music career, Grammy awards, Destiny's Child, acting"
-          };
-        } else if (username_lower === 'therock') {
-          profileInfo = {
-            displayName: 'Dwayne Johnson',
-            followerCount: 390000000, // approximate, public info
-            isVerified: true,
-            bio: "Actor • Producer • Entrepreneur",
-            knownFor: "WWE, Hollywood movies, Fitness"
-          };
-        } else if (username_lower === 'cristiano') {
-          profileInfo = {
-            displayName: 'Cristiano Ronaldo',
-            followerCount: 600000000, // approximate, public info
-            isVerified: true,
-            bio: "Footballer",
-            knownFor: "Professional football/soccer, Real Madrid, Manchester United, Al-Nassr FC"
-          };
-        }
-        
-        // Calculate exposure score based on profile information if available
-        let exposureScore = 60; // default
-        if (profileInfo && profileInfo.followerCount && profileInfo.followerCount > 0) {
-          exposureScore = Math.min(100, Math.max(60, 
-            Math.floor(Math.log10(profileInfo.followerCount) * 10)
-          ));
-        }
-        
-        // Add a special note for well-known profiles
-        const isWellKnownProfile = profileInfo !== null;
-        let wellKnownNote = "";
-        if (isWellKnownProfile && profileInfo && profileInfo.followerCount) {
-          wellKnownNote = `Note: ${profileInfo.displayName} is a public figure with approximately ${(profileInfo.followerCount / 1000000).toFixed(1)}M followers.`;
-        }
-        
-        // Create platform data with a notice that the profile exists but detailed data retrieval failed
-        return {
-          platformId: "instagram",
-          username,
-          profileData: {
-            displayName: profileInfo?.displayName || username,
-            bio: profileInfo?.bio || `${wellKnownNote}`,
-            followerCount: profileInfo?.followerCount || 0,
-            followingCount: 0,
-            joinDate: new Date().toISOString(),
-            profileUrl: `https://instagram.com/${username}`,
-            avatarUrl: `https://ui-avatars.com/api/?name=${username}&background=FF5A5F&color=fff`,
-            location: undefined,
-            verified: profileInfo?.isVerified
-          },
-          activityData: {
-            totalPosts: 0,
-            totalComments: 0,
-            totalLikes: 0,
-            totalShares: 0,
-            postsPerDay: 0,
-            mostActiveTime: "Unknown",
-            lastActive: new Date().toISOString(),
-            topHashtags: []
-          },
-          contentData: [],
-          privacyMetrics: {
-            exposureScore,
-            dataCategories: [
-              { category: "Profile Information", severity: "medium" },
-              ...(isWellKnownProfile ? [{ category: "High Visibility", severity: "high" as const }] : [])
-            ],
-            potentialConcerns: [
-              { issue: "Public profile visibility", risk: "medium" },
-              ...(isWellKnownProfile ? [{ issue: "High follower count", risk: "high" as const }] : [])
-            ],
-            recommendedActions: [
-              "Review privacy settings",
-              ...(isWellKnownProfile ? [
-                "Setup two-factor authentication",
-                "Be cautious about what you share"
-              ] : [
-                "Consider making your account private"
-              ])
-            ]
-          },
-          analysisResults: {
-            exposureScore,
-            topTopics: [
-              { topic: profileInfo?.knownFor || "Personal", percentage: 1.0 }
-            ],
-            activityTimeline: [],
-            sentimentBreakdown: {
-              positive: 0.33,
-              neutral: 0.34,
-              negative: 0.33
-            },
-            dataCategories: [
-              { category: "Profile Information", severity: "medium" },
-              ...(isWellKnownProfile ? [{ category: "Celebrity Status", severity: "high" as const }] : [])
-            ],
-            privacyConcerns: [
-              { 
-                type: "Public visibility", 
-                severity: "medium",
-                description: "Instagram profile is publicly visible" 
-              },
-              ...(isWellKnownProfile ? [{
-                type: "High visibility", 
-                severity: "high" as const,
-                description: "As a well-known profile, your content reaches millions of people"
-              }] : [])
-            ],
-            recommendedActions: [
-              "Review privacy settings",
-              ...(isWellKnownProfile ? [
-                "Use authorized apps only",
-                "Monitor account for unauthorized access"
-              ] : [
-                "Consider using Instagram's privacy features"
-              ])
-            ],
-            platformSpecificMetrics: {
-              contentBreakdown: {
-                photos: 0.7,
-                videos: 0.2,
-                stories: 0.1,
-                reels: 0
-              },
-              locationCheckIns: [],
-              engagementRate: (profileInfo && profileInfo.followerCount) ? 0.03 : 0,
-              hashtagAnalysis: []
-            }
-          }
-        };
-      }
-      
-      // No approach succeeded and we couldn't confirm the profile exists
-      log(`Could not retrieve Instagram data for ${username} with any available method`, 'instagram-api');
-      return null;
-      
-    } catch (error) {
-      console.error(`Error fetching Instagram data for ${username}:`, error);
       return null;
     }
   }
-
+  
+  /**
+   * Execute the actual data fetch with multiple fallback strategies
+   * @param username Normalized username
+   * @returns Platform data or null
+   */
+  private async executeDataFetch(username: string): Promise<PlatformData | null> {
+    // Try different methods in order of preference:
+    // 1. OAuth-based API access (most reliable but requires user login)
+    // 2. Graph API with access token (good for business accounts)
+    // 3. Public profile scraping (limited but works for public accounts)
+    
+    let result: PlatformData | null = null;
+    
+    // 1. Try OAuth first if available
+    if (instagramOAuth.getAccessToken()) {
+      try {
+        log('Attempting fetch via OAuth Basic Display API', 'instagram-api');
+        result = await this.fetchViaBasicDisplayApi(username);
+        if (result) return result;
+      } catch (error: any) {
+        log(`OAuth fetch failed: ${error.message}`, 'instagram-api');
+        // Continue to next method
+      }
+    }
+    
+    // 2. Try Graph API if access token is available
+    if (process.env.INSTAGRAM_ACCESS_TOKEN) {
+      try {
+        log('Attempting fetch via Graph API', 'instagram-api');
+        result = await this.fetchViaGraphApi(username, process.env.INSTAGRAM_ACCESS_TOKEN);
+        if (result) return result;
+      } catch (error: any) {
+        log(`Graph API fetch failed: ${error.message}`, 'instagram-api');
+        // Continue to next method
+      }
+    }
+    
+    // 3. Try public profile as last resort
+    try {
+      log('Attempting fetch via public profile', 'instagram-api');
+      result = await this.fetchViaPublicProfile(username);
+      if (result) return result;
+    } catch (error: any) {
+      log(`Public profile fetch failed: ${error.message}`, 'instagram-api');
+      // All methods failed
+    }
+    
+    return null;
+  }
+  
+  /**
+   * Create minimal data for error responses
+   * @param username Username that caused the error
+   * @param error The error that occurred
+   * @returns Minimal platform data
+   */
+  private createMinimalErrorData(username: string, error: any): PlatformData {
+    const isRateLimited = error.response?.status === 429;
+    
+    const minimalData: PlatformData = {
+      platformId: "instagram",
+      username,
+      profileData: {
+        displayName: username,
+        bio: "",
+        followerCount: 0,
+        followingCount: 0,
+        joinDate: new Date().toISOString(),
+        profileUrl: `https://instagram.com/${username}`,
+        avatarUrl: `https://ui-avatars.com/api/?name=${username}&background=FF5A5F&color=fff`,
+        location: undefined,
+        verified: false
+      },
+      activityData: {
+        totalPosts: 0,
+        totalComments: 0,
+        totalLikes: 0,
+        totalShares: 0,
+        postsPerDay: 0,
+        mostActiveTime: "Unknown",
+        lastActive: new Date().toISOString(),
+        topHashtags: []
+      },
+      contentData: [],
+      privacyMetrics: {
+        exposureScore: 0,
+        dataCategories: [
+          { category: "Profile Information", severity: "low" }
+        ],
+        potentialConcerns: [
+          { issue: isRateLimited ? "API rate limit exceeded" : "Profile not accessible", risk: "low" }
+        ],
+        recommendedActions: [
+          isRateLimited ? "Try again later" : "Verify username is correct"
+        ]
+      },
+      analysisResults: {
+        exposureScore: 0,
+        topTopics: [{ topic: "Unknown", percentage: 1.0 }],
+        activityTimeline: [],
+        sentimentBreakdown: {
+          positive: 0.33,
+          neutral: 0.34,
+          negative: 0.33
+        },
+        dataCategories: [
+          { category: "Profile Information", severity: "low" }
+        ],
+        privacyConcerns: [
+          { 
+            type: isRateLimited ? "Rate limiting" : "Profile access", 
+            severity: "low",
+            description: isRateLimited 
+              ? "Instagram API rate limit reached. Try again later." 
+              : "Could not access Instagram profile data."
+          }
+        ],
+        recommendedActions: [
+          isRateLimited ? "Try again later" : "Verify username is correct"
+        ],
+        platformSpecificMetrics: {
+          contentBreakdown: {
+            photos: 0,
+            videos: 0,
+            stories: 0,
+            reels: 0
+          },
+          locationCheckIns: [],
+          engagementRate: 0,
+          hashtagAnalysis: []
+        }
+      }
+    };
+    
+    return minimalData;
+  }
+  
+  // Implementation methods for different API approaches
+  // These methods would include the actual API calls similar to instagram-api-v2.ts
+  // For brevity, I've left them as stubs that would be implemented with the same
+  // logic as in the V2 service, but with proper error handling for rate limiting
+  
   /**
    * Fetch Instagram data using the Graph API (for business/creator accounts)
    * @param username Instagram username
@@ -316,64 +276,59 @@ export class InstagramApiService {
    * @returns Platform data or null
    */
   private async fetchViaGraphApi(username: string, accessToken: string): Promise<PlatformData | null> {
-    if (!accessToken) return null;
-    
     try {
-      // Get the page ID and check for Instagram business account
-      const pageInfoResponse = await axios.get('https://graph.facebook.com/v19.0/me', {
-        params: {
-          access_token: accessToken,
-          fields: 'id,name,instagram_business_account'
-        }
+      // Instagram Graph API requires business discovery with a valid Instagram Business Account ID
+      // First get the page ID
+      const pageResponse = await axios.get('https://graph.facebook.com/v18.0/me/accounts', {
+        params: { access_token: accessToken }
       });
       
-      // Extract the Instagram Business Account ID, if available
-      const instagramBusinessAccountId = pageInfoResponse.data?.instagram_business_account?.id;
-      
-      if (!instagramBusinessAccountId) {
-        log('No Instagram Business Account connected to this token. Cannot use Graph API.', 'instagram-api');
+      if (!pageResponse.data || !pageResponse.data.data || pageResponse.data.data.length === 0) {
+        log('No Facebook Pages found', 'instagram-api');
         return null;
       }
       
-      // Use Business Discovery API to get profile info for the target username
-      const igProfileResponse = await axios.get(`https://graph.facebook.com/v19.0/${instagramBusinessAccountId}`, {
+      // Use the first page by default
+      const pageId = pageResponse.data.data[0].id;
+      
+      // Now get the Instagram Business Account ID
+      const accountResponse = await axios.get(`https://graph.facebook.com/v18.0/${pageId}`, {
         params: {
-          access_token: accessToken,
-          fields: `business_discovery.username(${username}){username,website,name,ig_id,id,profile_picture_url,biography,follows_count,followers_count,media_count,media{caption,like_count,comments_count,media_url,permalink,timestamp,media_type}}`
+          fields: 'instagram_business_account',
+          access_token: accessToken
         }
       });
       
-      // Extract business discovery data
-      const businessDiscovery = igProfileResponse.data?.business_discovery;
-      
-      if (!businessDiscovery) {
-        log(`Instagram Business Discovery API could not find user: ${username}`, 'instagram-api');
+      if (!accountResponse.data || !accountResponse.data.instagram_business_account) {
+        log('No Instagram Business Account found', 'instagram-api');
         return null;
       }
       
-      return this.transformGraphApiData(businessDiscovery, username);
+      const instagramAccountId = accountResponse.data.instagram_business_account.id;
       
-    } catch (error: any) {
-      log(`Instagram Graph API error: ${error.message}`, 'instagram-api');
-      if (error.response?.data?.error) {
-        log(`API error details: ${JSON.stringify(error.response.data.error)}`, 'instagram-api');
+      // Now use business discovery to get data for the target username
+      const discoveryResponse = await axios.get(`https://graph.facebook.com/v18.0/${instagramAccountId}`, {
+        params: {
+          fields: 'business_discovery.username(' + username + '){username,website,name,ig_id,id,profile_picture_url,biography,follows_count,followers_count,media_count,media{caption,like_count,comments_count,media_url,permalink,timestamp}}',
+          access_token: accessToken
+        }
+      });
+      
+      if (!discoveryResponse.data || !discoveryResponse.data.business_discovery) {
+        log(`No Instagram data found for username ${username}`, 'instagram-api');
+        return null;
       }
-      throw error;
-    }
-  }
-
-  /**
-   * Fetch Instagram data using public data endpoints
-   * Note: This approach is limited but can work for public profiles
-   * @param username Instagram username
-   * @returns Platform data or null
-   */
-  private async fetchViaPublicData(username: string): Promise<PlatformData | null> {
-    try {
-      // Try alternative approach - public profile page scraping
-      return await this.fetchViaPublicProfile(username);
+      
+      const data = discoveryResponse.data.business_discovery;
+      return this.transformGraphApiData(data, username);
     } catch (error: any) {
-      log(`Instagram public data API error: ${error.message}`, 'instagram-api');
+      // Handle rate limiting specifically
+      if (error.response && error.response.status === 429) {
+        log('Instagram Graph API rate limit exceeded', 'instagram-api');
+        throw new Error('Rate limit exceeded');
+      }
+      
+      log(`Error using Graph API: ${error.message}`, 'instagram-api');
       if (error.response?.data) {
         log(`API error details: ${JSON.stringify(error.response.data)}`, 'instagram-api');
       }
@@ -389,175 +344,67 @@ export class InstagramApiService {
    */
   private async fetchViaPublicProfile(username: string): Promise<PlatformData | null> {
     try {
-      // Get the user's public profile page
-      const profileUrl = `https://www.instagram.com/${username}/`;
-      log(`Fetching Instagram public profile page for ${username}`, 'instagram-api');
-      
-      // Make the request with proper headers to mimic a browser
-      const response = await axios.get(profileUrl, {
+      // First try to get JSON data embedded in the page
+      const response = await axios.get(`https://www.instagram.com/${username}/?__a=1&__d=dis`, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache',
-          'Sec-Fetch-Dest': 'document',
-          'Sec-Fetch-Mode': 'navigate',
-          'Sec-Fetch-Site': 'none',
-          'Sec-Fetch-User': '?1',
-          'Upgrade-Insecure-Requests': '1',
-          'Referer': 'https://www.google.com/'
-        },
-        timeout: 10000, // 10 second timeout
-        maxRedirects: 5,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+          'DNT': '1',
+          'Connection': 'keep-alive',
+          'Upgrade-Insecure-Requests': '1'
+        }
       });
       
-      // The HTML response contains JSON data in a script tag with id="__NEXT_DATA__"
-      const html = response.data;
+      // Check if we got data
+      if (response.data && response.data.graphql && response.data.graphql.user) {
+        log(`Successfully retrieved public data for Instagram user ${username}`, 'instagram-api');
+        return this.transformPublicData(response.data.graphql.user, username);
+      }
       
-      // Extract data using regex pattern matching from the HTML
-      // Look for profile data in the shared_data script
-      const sharedDataMatch = html.match(/<script type="text\/javascript">window\._sharedData = (.+?);<\/script>/);
+      // If the above didn't work, try direct HTML scraping as fallback
+      // This approach is more brittle but can work as a last resort
+      const htmlResponse = await axios.get(`https://www.instagram.com/${username}/`, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        }
+      });
       
-      if (sharedDataMatch && sharedDataMatch[1]) {
-        const sharedData = JSON.parse(sharedDataMatch[1]);
-        const userData = sharedData?.entry_data?.ProfilePage?.[0]?.graphql?.user;
+      // Look for JSON data in the HTML
+      const html = htmlResponse.data;
+      const jsonDataMatch = html.match(/<script type="text\/javascript">window\._sharedData = (.+?);<\/script>/);
+      
+      if (jsonDataMatch && jsonDataMatch[1]) {
+        const sharedData = JSON.parse(jsonDataMatch[1]);
+        const userData = sharedData.entry_data?.ProfilePage?.[0]?.graphql?.user;
         
         if (userData) {
-          log(`Successfully extracted profile data for ${username} from public HTML`, 'instagram-api');
+          log(`Successfully extracted profile data from HTML for Instagram user ${username}`, 'instagram-api');
           return this.transformPublicData(userData, username);
         }
       }
       
-      // If shared_data approach fails, try the __NEXT_DATA__ approach
-      const nextDataMatch = html.match(/<script id="__NEXT_DATA__" type="application\/json">(.+?)<\/script>/);
-      
-      if (nextDataMatch && nextDataMatch[1]) {
-        const nextData = JSON.parse(nextDataMatch[1]);
-        // Navigate through the structure to find user data - structure might vary
-        const userData = nextData?.props?.pageProps?.user || 
-                         nextData?.props?.pageProps?.data?.user ||
-                         nextData?.props?.pageProps?.entityOverrideData?.data?.user;
-                         
-        if (userData) {
-          log(`Successfully extracted profile data for ${username} from __NEXT_DATA__`, 'instagram-api');
-          return this.transformPublicData(userData, username);
-        }
-      }
-      
-      // If we couldn't extract structured data, create minimal profile with available information
-      log(`Could not extract detailed profile data for ${username}, creating minimal profile`, 'instagram-api');
-      
-      // Create minimal platform data
-      const minimalData: PlatformData = {
-        platformId: "instagram",
-        username,
-        profileData: {
-          displayName: username,
-          bio: "",
-          followerCount: 0,
-          followingCount: 0,
-          joinDate: new Date().toISOString(),
-          profileUrl: `https://instagram.com/${username}`,
-          avatarUrl: `https://ui-avatars.com/api/?name=${username}&background=FF5A5F&color=fff`,
-          location: undefined,
-          verified: false
-        },
-        activityData: {
-          totalPosts: 0,
-          totalComments: 0,
-          totalLikes: 0,
-          totalShares: 0,
-          postsPerDay: 0,
-          mostActiveTime: "Unknown",
-          lastActive: new Date().toISOString(),
-          topHashtags: []
-        },
-        contentData: [],
-        privacyMetrics: {
-          exposureScore: 50,
-          dataCategories: [
-            { category: "Profile Information", severity: "medium" }
-          ],
-          potentialConcerns: [
-            { issue: "Public profile visibility", risk: "medium" }
-          ],
-          recommendedActions: [
-            "Review privacy settings",
-            "Consider making your account private"
-          ]
-        },
-        analysisResults: {
-          exposureScore: 50,
-          topTopics: [
-            { topic: "Personal", percentage: 1.0 }
-          ],
-          activityTimeline: [],
-          sentimentBreakdown: {
-            positive: 0.33,
-            neutral: 0.34,
-            negative: 0.33
-          },
-          dataCategories: [
-            { category: "Profile Information", severity: "medium" }
-          ],
-          privacyConcerns: [
-            { 
-              type: "Public visibility", 
-              severity: "medium",
-              description: "Instagram content is publicly visible" 
-            }
-          ],
-          recommendedActions: [
-            "Review privacy settings"
-          ],
-          platformSpecificMetrics: {
-            contentBreakdown: {
-              photos: 0,
-              videos: 0,
-              stories: 0,
-              reels: 0
-            },
-            locationCheckIns: [],
-            engagementRate: 0,
-            hashtagAnalysis: []
+      // Check for alternate JSON data format
+      const alternateMatch = html.match(/<script type="application\/json" data-sjs>(.+?)<\/script>/);
+      if (alternateMatch && alternateMatch[1]) {
+        try {
+          const parsedData = JSON.parse(alternateMatch[1]);
+          // Navigate the complex structure to find user data
+          const userData = parsedData?.require?.[0]?.[3]?.[0]?.['__bbox']?.['require']?.[0]?.[3]?.[0]?.['__bbox']?.['result']?.['data']?.['user'];
+          
+          if (userData) {
+            log(`Successfully extracted alternate profile data for Instagram user ${username}`, 'instagram-api');
+            return this.transformPublicData(userData, username);
           }
+        } catch (parseError) {
+          log(`Error parsing alternate JSON data: ${parseError}`, 'instagram-api');
         }
-      };
-      
-      // Check if the profile exists by looking for various indicators in the HTML
-      const titleRegex = new RegExp(`<title>([^<]*${username}[^<]*)<\/title>`, 'i');
-      const metaRegex = new RegExp(`<meta[^>]*content="([^"]*${username}[^"]*)"[^>]*>`, 'i');
-      const profileLinkRegex = new RegExp(`href="https://www.instagram.com/${username}/?"`, 'i');
-      
-      if (html.includes(`@${username}`) || 
-          titleRegex.test(html) || 
-          metaRegex.test(html) ||
-          profileLinkRegex.test(html) ||
-          html.includes(`${username}`) && html.includes('Instagram photos and videos')) {
-        log(`Profile for ${username} likely exists (detected in HTML)`, 'instagram-api');
-        return minimalData;
       }
       
-      log(`Profile page for ${username} does not appear to exist`, 'instagram-api');
-      return null;
-      
-    } catch (error: any) {
-      log(`Error fetching Instagram public profile for ${username}: ${error.message}`, 'instagram-api');
-      
-      // Handle specific error cases
-      if (error.response?.status === 404) {
-        log(`Instagram profile ${username} not found (404)`, 'instagram-api');
-        return null;
-      }
-      
-      // For rate limiting or other temporary errors, return minimal data
-      if (error.response?.status === 429 || 
-          error.response?.status === 403 || 
-          error.message.includes('ECONNRESET') ||
-          error.message.includes('timeout')) {
-        
-        log(`Instagram API rate limited or blocked for ${username} (${error.response?.status || 'network error'})`, 'instagram-api');
+      // If we couldn't extract detailed data but the page exists, return minimal data
+      if (html.includes(`@${username}`) || html.includes(`"alternateName":"${username}"`)) {
+        log(`Found Instagram profile for ${username} but couldn't extract detailed data`, 'instagram-api');
         
         // The username may still be valid, return minimal data
         const minimalData: PlatformData = {
@@ -639,10 +486,19 @@ export class InstagramApiService {
         return minimalData;
       }
       
+      throw new Error('Instagram profile not found or is private');
+    } catch (error: any) {
+      // Special handling for rate limiting
+      if (error.response && error.response.status === 429) {
+        log('Instagram public API rate limit exceeded', 'instagram-api');
+        throw new Error('Rate limit exceeded');
+      }
+      
+      log(`Error fetching public Instagram profile: ${error.message}`, 'instagram-api');
       throw error;
     }
   }
-
+  
   /**
    * Fetch Instagram data using the Basic Display API (requires user authentication)
    * Note: This method uses the OAuth flow to access user data
@@ -795,6 +651,12 @@ export class InstagramApiService {
         return null;
       }
     } catch (error: any) {
+      // Special handling for rate limiting
+      if (error.response && error.response.status === 429) {
+        log('Instagram Basic Display API rate limit exceeded', 'instagram-api');
+        throw new Error('Rate limit exceeded');
+      }
+      
       log(`Error using Instagram Basic Display API: ${error.message}`, 'instagram-api');
       if (error.response?.data) {
         log(`API error details: ${JSON.stringify(error.response.data)}`, 'instagram-api');
@@ -802,7 +664,7 @@ export class InstagramApiService {
       throw error;
     }
   }
-
+  
   /**
    * Transform Graph API data to our platform format
    * @param data API response data
@@ -958,11 +820,6 @@ export class InstagramApiService {
       { category: "Personal Interests", severity: "low" as const }
     ];
     
-    const privacyConcerns = [
-      { issue: "Location metadata in photos", risk: "high" as const },
-      { issue: "Facial recognition in tagged photos", risk: "medium" as const }
-    ];
-    
     // Calculate exposure score
     const exposureScore = Math.min(100, 
       Math.floor(
@@ -1052,7 +909,8 @@ export class InstagramApiService {
       joinDate: new Date().toISOString(), // Not provided by API
       profileUrl: `https://instagram.com/${username}`,
       avatarUrl: data.profile_pic_url_hd || data.profile_pic_url || `https://ui-avatars.com/api/?name=${username}&background=FF5A5F&color=fff`,
-      location: undefined // Not provided by API
+      location: undefined, // Not provided by API
+      verified: data.is_verified || false
     };
     
     // Media data isn't as complete from public API
@@ -1257,8 +1115,8 @@ export class InstagramApiService {
         recommendedActions: [
           "Review and update privacy settings",
           "Remove location data from posts",
-          "Audit tagged photos regularly",
-          "Be mindful of personal info in captions"
+          "Audit tagged photos regularly", 
+          "Consider making account private"
         ],
         platformSpecificMetrics: {
           contentBreakdown,
@@ -1271,5 +1129,5 @@ export class InstagramApiService {
   }
 }
 
-// Export as a singleton
-export const instagramApi = new InstagramApiService();
+// Create singleton instance
+export const instagramApiV3 = new InstagramApiServiceV3();

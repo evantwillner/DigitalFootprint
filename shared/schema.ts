@@ -166,6 +166,7 @@ export const platformDataSchema = z.object({
     profileUrl: z.string().optional(),
     avatarUrl: z.string().optional(),
     location: z.string().optional(),
+    verified: z.boolean().optional(),
   }).optional(),
   activityData: z.object({
     totalPosts: z.number().optional(),
