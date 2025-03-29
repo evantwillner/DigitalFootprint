@@ -381,7 +381,7 @@ export class InstagramApiService {
             { topic: "Technology", percentage: 0.1 + rand(-0.05, 0.05) },
             { topic: "Lifestyle", percentage: 0.1 + rand(-0.05, 0.05) }
           ],
-          activityTimeline: this.generateActivityTimeline(media),
+          activityTimeline: this.buildActivityTimeline(media),
           sentimentBreakdown: {
             positive: 0.6,  // Would be calculated from content analysis
             neutral: 0.3,   // Would be calculated from content analysis
@@ -410,7 +410,7 @@ export class InstagramApiService {
    * @param media Array of media items from Graph API
    * @returns Activity timeline by month
    */
-  private generateActivityTimeline(media: any[]): Array<{period: string, count: number}> {
+  private buildActivityTimeline(media: any[]): Array<{period: string, count: number}> {
     // Group posts by month
     const timeline: Record<string, number> = {};
     
