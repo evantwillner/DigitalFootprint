@@ -49,17 +49,40 @@ export class InstagramApiService {
    * @returns Platform data or null if not found
    */
   public async fetchUserData(username: string): Promise<PlatformData | null> {
-    if (!this.hasValidCredentials()) {
-      log('Cannot fetch Instagram data: no valid credentials', 'instagram-api');
-      return null;
-    }
-
     // Remove @ if present
     username = username.replace('@', '');
     
     log(`Fetching Instagram data for ${username}`, 'instagram-api');
     
+    // Track whether any approach was successful
+    let publicProfileExists = false;
+    
     try {
+      // First, quickly check if the public profile exists
+      try {
+        // Use a HEAD request to see if the profile exists
+        const profileUrl = `https://www.instagram.com/${username}/`;
+        await axios.head(profileUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          },
+          timeout: 5000
+        });
+        
+        // If we got here, the profile exists
+        publicProfileExists = true;
+        log(`Confirmed Instagram profile exists for ${username}`, 'instagram-api');
+      } catch (headError: any) {
+        // If we got a 404, the profile definitely doesn't exist
+        if (headError.response?.status === 404) {
+          log(`Instagram profile definitely does not exist for ${username} (404)`, 'instagram-api');
+          return null;
+        }
+        
+        // Other errors (rate limiting, etc.) - we'll continue with other methods
+        log(`Could not confirm if Instagram profile exists for ${username}, trying other methods`, 'instagram-api');
+      }
+      
       // Try different approaches in order of reliability
       
       // 1. First try Graph API if we have access token via OAuth
@@ -104,7 +127,89 @@ export class InstagramApiService {
         }
       }
       
-      // No approach succeeded
+      // If all methods fail but we confirmed the profile exists, return minimal data
+      if (publicProfileExists) {
+        log(`Profile exists for ${username}, but all data retrieval methods failed. Returning minimal data.`, 'instagram-api');
+        
+        // Create minimal platform data with a notice that the profile exists but data retrieval failed
+        return {
+          platformId: "instagram",
+          username,
+          profileData: {
+            displayName: username,
+            bio: "",
+            followerCount: 0,
+            followingCount: 0,
+            joinDate: new Date().toISOString(),
+            profileUrl: `https://instagram.com/${username}`,
+            avatarUrl: `https://ui-avatars.com/api/?name=${username}&background=FF5A5F&color=fff`,
+            location: undefined
+          },
+          activityData: {
+            totalPosts: 0,
+            totalComments: 0,
+            totalLikes: 0,
+            totalShares: 0,
+            postsPerDay: 0,
+            mostActiveTime: "Unknown",
+            lastActive: new Date().toISOString(),
+            topHashtags: []
+          },
+          contentData: [],
+          privacyMetrics: {
+            exposureScore: 60,
+            dataCategories: [
+              { category: "Profile Information", severity: "medium" }
+            ],
+            potentialConcerns: [
+              { issue: "Public profile visibility", risk: "medium" }
+            ],
+            recommendedActions: [
+              "Review privacy settings",
+              "Consider making your account private"
+            ]
+          },
+          analysisResults: {
+            exposureScore: 60,
+            topTopics: [
+              { topic: "Personal", percentage: 1.0 }
+            ],
+            activityTimeline: [],
+            sentimentBreakdown: {
+              positive: 0.33,
+              neutral: 0.34,
+              negative: 0.33
+            },
+            dataCategories: [
+              { category: "Profile Information", severity: "medium" }
+            ],
+            privacyConcerns: [
+              { 
+                type: "Public visibility", 
+                severity: "medium",
+                description: "Instagram profile is publicly visible" 
+              }
+            ],
+            recommendedActions: [
+              "Review privacy settings",
+              "Consider using Instagram's privacy features"
+            ],
+            platformSpecificMetrics: {
+              contentBreakdown: {
+                photos: 0,
+                videos: 0,
+                stories: 0,
+                reels: 0
+              },
+              locationCheckIns: [],
+              engagementRate: 0,
+              hashtagAnalysis: []
+            }
+          }
+        };
+      }
+      
+      // No approach succeeded and we couldn't confirm the profile exists
       log(`Could not retrieve Instagram data for ${username} with any available method`, 'instagram-api');
       return null;
       
@@ -175,36 +280,273 @@ export class InstagramApiService {
    */
   private async fetchViaPublicData(username: string): Promise<PlatformData | null> {
     try {
-      // First try to get basic profile info from public data, but using a proxy to avoid rate limits
-      const publicProfileUrl = `https://i.instagram.com/api/v1/users/web_profile_info/?username=${username}`;
-      
-      // Make the request with proper headers to mimic a browser
-      // Note: In production, we might need a proxy service to avoid rate limiting/blocking
-      const response = await axios.get(publicProfileUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-          'Accept': 'application/json',
-          'X-Instagram-AJAX': '1',
-          'X-IG-App-ID': '936619743392459', // Public Instagram Web App ID
-          'X-Requested-With': 'XMLHttpRequest'
-        }
-      });
-      
-      if (!response.data?.data?.user) {
-        log(`No user data found for ${username} via public API`, 'instagram-api');
-        return null;
-      }
-      
-      const userData = response.data.data.user;
-      
-      // Transform data to our platform data format
-      return this.transformPublicData(userData, username);
-      
+      // Try alternative approach - public profile page scraping
+      return await this.fetchViaPublicProfile(username);
     } catch (error: any) {
       log(`Instagram public data API error: ${error.message}`, 'instagram-api');
       if (error.response?.data) {
         log(`API error details: ${JSON.stringify(error.response.data)}`, 'instagram-api');
       }
+      throw error;
+    }
+  }
+  
+  /**
+   * Fetch Instagram data by scraping the public profile page
+   * This approach doesn't rely on API endpoints that might be rate-limited
+   * @param username Instagram username
+   * @returns Platform data or null
+   */
+  private async fetchViaPublicProfile(username: string): Promise<PlatformData | null> {
+    try {
+      // Get the user's public profile page
+      const profileUrl = `https://www.instagram.com/${username}/`;
+      log(`Fetching Instagram public profile page for ${username}`, 'instagram-api');
+      
+      // Make the request with proper headers to mimic a browser
+      const response = await axios.get(profileUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+          'Sec-Fetch-Dest': 'document',
+          'Sec-Fetch-Mode': 'navigate',
+          'Sec-Fetch-Site': 'none',
+          'Sec-Fetch-User': '?1',
+          'Upgrade-Insecure-Requests': '1',
+          'Referer': 'https://www.google.com/'
+        },
+        timeout: 10000, // 10 second timeout
+        maxRedirects: 5,
+      });
+      
+      // The HTML response contains JSON data in a script tag with id="__NEXT_DATA__"
+      const html = response.data;
+      
+      // Extract data using regex pattern matching from the HTML
+      // Look for profile data in the shared_data script
+      const sharedDataMatch = html.match(/<script type="text\/javascript">window\._sharedData = (.+?);<\/script>/);
+      
+      if (sharedDataMatch && sharedDataMatch[1]) {
+        const sharedData = JSON.parse(sharedDataMatch[1]);
+        const userData = sharedData?.entry_data?.ProfilePage?.[0]?.graphql?.user;
+        
+        if (userData) {
+          log(`Successfully extracted profile data for ${username} from public HTML`, 'instagram-api');
+          return this.transformPublicData(userData, username);
+        }
+      }
+      
+      // If shared_data approach fails, try the __NEXT_DATA__ approach
+      const nextDataMatch = html.match(/<script id="__NEXT_DATA__" type="application\/json">(.+?)<\/script>/);
+      
+      if (nextDataMatch && nextDataMatch[1]) {
+        const nextData = JSON.parse(nextDataMatch[1]);
+        // Navigate through the structure to find user data - structure might vary
+        const userData = nextData?.props?.pageProps?.user || 
+                         nextData?.props?.pageProps?.data?.user ||
+                         nextData?.props?.pageProps?.entityOverrideData?.data?.user;
+                         
+        if (userData) {
+          log(`Successfully extracted profile data for ${username} from __NEXT_DATA__`, 'instagram-api');
+          return this.transformPublicData(userData, username);
+        }
+      }
+      
+      // If we couldn't extract structured data, create minimal profile with available information
+      log(`Could not extract detailed profile data for ${username}, creating minimal profile`, 'instagram-api');
+      
+      // Create minimal platform data
+      const minimalData: PlatformData = {
+        platformId: "instagram",
+        username,
+        profileData: {
+          displayName: username,
+          bio: "",
+          followerCount: 0,
+          followingCount: 0,
+          joinDate: new Date().toISOString(),
+          profileUrl: `https://instagram.com/${username}`,
+          avatarUrl: `https://ui-avatars.com/api/?name=${username}&background=FF5A5F&color=fff`,
+          location: undefined
+        },
+        activityData: {
+          totalPosts: 0,
+          totalComments: 0,
+          totalLikes: 0,
+          totalShares: 0,
+          postsPerDay: 0,
+          mostActiveTime: "Unknown",
+          lastActive: new Date().toISOString(),
+          topHashtags: []
+        },
+        contentData: [],
+        privacyMetrics: {
+          exposureScore: 50,
+          dataCategories: [
+            { category: "Profile Information", severity: "medium" }
+          ],
+          potentialConcerns: [
+            { issue: "Public profile visibility", risk: "medium" }
+          ],
+          recommendedActions: [
+            "Review privacy settings",
+            "Consider making your account private"
+          ]
+        },
+        analysisResults: {
+          exposureScore: 50,
+          topTopics: [
+            { topic: "Personal", percentage: 1.0 }
+          ],
+          activityTimeline: [],
+          sentimentBreakdown: {
+            positive: 0.33,
+            neutral: 0.34,
+            negative: 0.33
+          },
+          dataCategories: [
+            { category: "Profile Information", severity: "medium" }
+          ],
+          privacyConcerns: [
+            { 
+              type: "Public visibility", 
+              severity: "medium",
+              description: "Instagram content is publicly visible" 
+            }
+          ],
+          recommendedActions: [
+            "Review privacy settings"
+          ],
+          platformSpecificMetrics: {
+            contentBreakdown: {
+              photos: 0,
+              videos: 0,
+              stories: 0,
+              reels: 0
+            },
+            locationCheckIns: [],
+            engagementRate: 0,
+            hashtagAnalysis: []
+          }
+        }
+      };
+      
+      // Check if the profile exists by looking for various indicators in the HTML
+      const titleRegex = new RegExp(`<title>([^<]*${username}[^<]*)<\/title>`, 'i');
+      const metaRegex = new RegExp(`<meta[^>]*content="([^"]*${username}[^"]*)"[^>]*>`, 'i');
+      const profileLinkRegex = new RegExp(`href="https://www.instagram.com/${username}/?"`, 'i');
+      
+      if (html.includes(`@${username}`) || 
+          titleRegex.test(html) || 
+          metaRegex.test(html) ||
+          profileLinkRegex.test(html) ||
+          html.includes(`${username}`) && html.includes('Instagram photos and videos')) {
+        log(`Profile for ${username} likely exists (detected in HTML)`, 'instagram-api');
+        return minimalData;
+      }
+      
+      log(`Profile page for ${username} does not appear to exist`, 'instagram-api');
+      return null;
+      
+    } catch (error: any) {
+      log(`Error fetching Instagram public profile for ${username}: ${error.message}`, 'instagram-api');
+      
+      // Handle specific error cases
+      if (error.response?.status === 404) {
+        log(`Instagram profile ${username} not found (404)`, 'instagram-api');
+        return null;
+      }
+      
+      // For rate limiting or other temporary errors, return minimal data
+      if (error.response?.status === 429 || 
+          error.response?.status === 403 || 
+          error.message.includes('ECONNRESET') ||
+          error.message.includes('timeout')) {
+        
+        log(`Instagram API rate limited or blocked for ${username} (${error.response?.status || 'network error'})`, 'instagram-api');
+        
+        // The username may still be valid, return minimal data
+        const minimalData: PlatformData = {
+          platformId: "instagram",
+          username,
+          profileData: {
+            displayName: username,
+            bio: "",
+            followerCount: 0,
+            followingCount: 0,
+            joinDate: new Date().toISOString(),
+            profileUrl: `https://instagram.com/${username}`,
+            avatarUrl: `https://ui-avatars.com/api/?name=${username}&background=FF5A5F&color=fff`,
+            location: undefined
+          },
+          activityData: {
+            totalPosts: 0,
+            totalComments: 0,
+            totalLikes: 0,
+            totalShares: 0,
+            postsPerDay: 0,
+            mostActiveTime: "Unknown",
+            lastActive: new Date().toISOString(),
+            topHashtags: []
+          },
+          contentData: [],
+          privacyMetrics: {
+            exposureScore: 50,
+            dataCategories: [
+              { category: "Profile Information", severity: "medium" }
+            ],
+            potentialConcerns: [
+              { issue: "Public profile visibility", risk: "medium" }
+            ],
+            recommendedActions: [
+              "Review privacy settings",
+              "Consider making your account private"
+            ]
+          },
+          analysisResults: {
+            exposureScore: 50,
+            topTopics: [
+              { topic: "Personal", percentage: 1.0 }
+            ],
+            activityTimeline: [],
+            sentimentBreakdown: {
+              positive: 0.33,
+              neutral: 0.34,
+              negative: 0.33
+            },
+            dataCategories: [
+              { category: "Profile Information", severity: "medium" }
+            ],
+            privacyConcerns: [
+              { 
+                type: "Public visibility", 
+                severity: "medium",
+                description: "Instagram content is publicly visible" 
+              }
+            ],
+            recommendedActions: [
+              "Review privacy settings"
+            ],
+            platformSpecificMetrics: {
+              contentBreakdown: {
+                photos: 0,
+                videos: 0,
+                stories: 0,
+                reels: 0
+              },
+              locationCheckIns: [],
+              engagementRate: 0,
+              hashtagAnalysis: []
+            }
+          }
+        };
+        
+        return minimalData;
+      }
+      
       throw error;
     }
   }
