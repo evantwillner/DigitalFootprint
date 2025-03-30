@@ -21,7 +21,7 @@ async function testTwitterAPI() {
   console.log(`Testing Twitter API for username: ${username}`);
   
   // Check the API status
-  const status = twitterApi.getApiStatus();
+  const status = await twitterApi.getApiStatus();
   console.log('Twitter API Status:', status);
   
   if (!status.configured) {
@@ -29,6 +29,21 @@ async function testTwitterAPI() {
     console.error('- TWITTER_API_KEY');
     console.error('- TWITTER_API_SECRET');
     console.error('- TWITTER_BEARER_TOKEN');
+    process.exit(1);
+  }
+  
+  if (status.operational === false) {
+    console.error(`Twitter API is configured but not operational: ${status.message}`);
+    
+    // Special handling for rate limiting
+    if (status.message.includes('rate limited')) {
+      console.error('⚠️ Twitter API is rate limited. This is a temporary condition - please wait a few minutes and try again.');
+    } else if (status.message.includes('service is currently unavailable')) {
+      console.error('⚠️ Twitter API service is down or unavailable. Please try again later.');
+    } else {
+      console.error('Please check your Twitter API credentials and try again.');
+    }
+    
     process.exit(1);
   }
   

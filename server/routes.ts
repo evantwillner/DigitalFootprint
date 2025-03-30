@@ -255,13 +255,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const cacheStats = cacheService.platformData.getStats();
       const instagramRateLimits = rateLimiters.instagram.getStats();
       
+      // Get platform statuses (async calls)
+      const twitterStatus = await twitterApi.getApiStatus();
+      const platformStatus = await platformApi.getPlatformStatus();
+      
       const status = {
         twitter: {
-          configured: twitterApi.hasValidCredentials(),
-          message: twitterApi.getApiStatus().message
+          configured: twitterStatus.configured,
+          operational: twitterStatus.operational,
+          message: twitterStatus.message
         },
         reddit: redditApi.getApiStatus(),
-        instagram: platformApi.getPlatformStatus().instagram,
+        instagram: (await platformStatus).instagram,
         // Add other platforms as they're implemented
         facebook: {
           configured: false,
@@ -673,12 +678,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Lazy-load the API service to avoid circular dependencies
       const { twitterApi } = await import('./services/twitter-api');
       
-      const status = twitterApi.getApiStatus();
+      const status = await twitterApi.getApiStatus();
       
       return res.json({
         status,
-        configured: twitterApi.hasValidCredentials(),
-        message: "Twitter API status check"
+        configured: status.configured,
+        operational: status.operational,
+        message: status.message
       });
     } catch (err) {
       console.error("Error checking Twitter API status:", err);
@@ -696,12 +702,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { twitterApi } = await import('./services/twitter-api');
       
       // Check the API status
-      const apiStatus = twitterApi.getApiStatus();
+      const apiStatus = await twitterApi.getApiStatus();
       
-      if (!apiStatus.configured) {
+      if (!apiStatus.configured || apiStatus.operational === false) {
+        // Get a more specific error message based on the API status
+        let errorMessage = "Twitter API is not configured";
+        
+        if (apiStatus.configured && apiStatus.operational === false) {
+          if (apiStatus.message.includes('rate limited')) {
+            errorMessage = "Twitter API is rate limited. Please try again later.";
+          } else if (apiStatus.message.includes('service is currently unavailable')) {
+            errorMessage = "Twitter API service is currently unavailable. Please try again later.";
+          } else {
+            errorMessage = "Twitter API credentials are invalid or expired";
+          }
+        }
+        
         return res.status(400).json({
           success: false,
-          message: "Twitter API is not configured",
+          message: errorMessage,
           apiStatus,
           username,
           dataAvailable: false

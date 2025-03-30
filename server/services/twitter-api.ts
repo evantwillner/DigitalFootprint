@@ -22,6 +22,10 @@ export class TwitterApiService {
         this.client = new TwitterApi(process.env.TWITTER_BEARER_TOKEN);
         this.isConfigured = true;
         log('Twitter API Service initialized with bearer token', 'twitter-api');
+        
+        // We'll consider the API configured if we have credentials,
+        // even if they're rate limited or temporarily unavailable.
+        // The operational status is determined separately via getApiStatus()
       } else {
         log('⚠️ Twitter API Service not configured - missing API keys', 'twitter-api');
       }
@@ -43,7 +47,7 @@ export class TwitterApiService {
   /**
    * Get API status - used to show which platforms have active connections
    */
-  public getApiStatus(): { configured: boolean; message: string } {
+  public async getApiStatus(): Promise<{ configured: boolean; message: string; operational?: boolean }> {
     if (!this.isConfigured) {
       return {
         configured: false,
@@ -51,10 +55,59 @@ export class TwitterApiService {
       };
     }
     
-    return {
-      configured: true,
-      message: 'Twitter API configured and ready.'
-    };
+    // Attempt a simple API call to verify the credentials work
+    try {
+      // Test with a known user (Twitter's own account)
+      const testResponse = await this.client?.v2.userByUsername('Twitter');
+      if (!testResponse || !testResponse.data) {
+        return {
+          configured: true,
+          operational: false,
+          message: 'Twitter API credentials are configured but not working. Credentials may be expired or invalid.'
+        };
+      }
+
+      return {
+        configured: true,
+        operational: true,
+        message: 'Twitter API configured and operational.'
+      };
+    } catch (error: any) {
+      // If we get a 401, the credentials are invalid
+      if (error.code === 401 || error.message.includes('401')) {
+        this.isConfigured = false; // Update status
+        return {
+          configured: false,
+          operational: false,
+          message: 'Twitter API credentials are expired or invalid. Please update the credentials.'
+        };
+      }
+      
+      // Check for rate limiting (429)
+      if (error.code === 429 || error.message.includes('429')) {
+        return {
+          configured: true,
+          operational: false,
+          message: 'Twitter API is rate limited. Please try again later.'
+        };
+      }
+      
+      // Check for service unavailable (503)
+      if (error.code === 503 || error.message.includes('503')) {
+        return {
+          configured: true,
+          operational: false,
+          message: 'Twitter API service is currently unavailable. Please try again later.'
+        };
+      }
+
+      // For other errors, we're configured but not operational
+      return {
+        configured: true,
+        operational: false,
+        message: `Twitter API configured but encountering errors: ${error.message}`
+      };
+    }
   }
 
   /**
@@ -63,8 +116,23 @@ export class TwitterApiService {
    * @returns Platform data or null if not found
    */
   public async fetchUserData(username: string): Promise<PlatformData | null> {
+    // First check if the API is operational
     if (!this.client || !this.isConfigured) {
       log('Cannot fetch Twitter data - API not configured', 'twitter-api');
+      return null;
+    }
+    
+    // Verify credentials before making the real API call
+    const status = await this.getApiStatus();
+    if (status.operational === false) {
+      // Use a more specific error message based on the status message
+      if (status.message.includes('rate limited')) {
+        log(`Cannot fetch Twitter data - API is rate limited. Please try again later.`, 'twitter-api');
+      } else if (status.message.includes('service is currently unavailable')) {
+        log(`Cannot fetch Twitter data - Twitter API service is down. Please try again later.`, 'twitter-api');
+      } else {
+        log(`Cannot fetch Twitter data - API credentials issue: ${status.message}`, 'twitter-api');
+      }
       return null;
     }
 
@@ -103,6 +171,12 @@ export class TwitterApiService {
       
       if (error.code === 429) {
         log('Twitter API rate limit exceeded', 'twitter-api');
+      } else if (error.code === 401 || error.message.includes('401')) {
+        log('Twitter API authentication failed - credentials may be expired or invalid', 'twitter-api');
+        // Mark the API as not properly configured so future calls will fail quickly
+        this.isConfigured = false;
+      } else if (error.code === 403) {
+        log('Twitter API permission denied - credentials may lack necessary scopes', 'twitter-api');
       }
       
       return null;
@@ -126,6 +200,28 @@ export class TwitterApiService {
         success: false,
         message: 'Twitter API not configured for deletion requests'
       };
+    }
+    
+    // Verify credentials before making the API call
+    const status = await this.getApiStatus();
+    if (status.operational === false) {
+      // Provide more specific error messages based on the status
+      if (status.message.includes('rate limited')) {
+        return {
+          success: false,
+          message: 'Twitter API is currently rate limited. Please try again later.'
+        };
+      } else if (status.message.includes('service is currently unavailable')) {
+        return {
+          success: false,
+          message: 'Twitter API service is currently unavailable. Please try again later.'
+        };
+      } else {
+        return {
+          success: false,
+          message: `Twitter API credentials issue: ${status.message}`
+        };
+      }
     }
     
     try {
@@ -171,6 +267,28 @@ export class TwitterApiService {
         success: false,
         message: 'Twitter API not configured for deletion requests'
       };
+    }
+    
+    // Verify credentials before making the API call
+    const status = await this.getApiStatus();
+    if (status.operational === false) {
+      // Provide more specific error messages based on the status
+      if (status.message.includes('rate limited')) {
+        return {
+          success: false,
+          message: 'Twitter API is currently rate limited. Please try again later.'
+        };
+      } else if (status.message.includes('service is currently unavailable')) {
+        return {
+          success: false,
+          message: 'Twitter API service is currently unavailable. Please try again later.'
+        };
+      } else {
+        return {
+          success: false,
+          message: `Twitter API credentials issue: ${status.message}`
+        };
+      }
     }
     
     try {
@@ -313,6 +431,20 @@ export class TwitterApiService {
    */
   public async checkUsernameExists(username: string): Promise<boolean> {
     if (!this.client || !this.isConfigured) {
+      return false;
+    }
+    
+    // Verify credentials before making the API call
+    const status = await this.getApiStatus();
+    if (status.operational === false) {
+      // Use a more specific error message based on the status message
+      if (status.message.includes('rate limited')) {
+        log(`Cannot check Twitter username - API is rate limited. Please try again later.`, 'twitter-api');
+      } else if (status.message.includes('service is currently unavailable')) {
+        log(`Cannot check Twitter username - Twitter API service is down. Please try again later.`, 'twitter-api');
+      } else {
+        log(`Cannot check Twitter username - API credentials issue: ${status.message}`, 'twitter-api');
+      }
       return false;
     }
 

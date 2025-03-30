@@ -113,6 +113,13 @@ class PlatformApiService {
         return cachedData;
       }
       
+      // Check API status before fetching data
+      const apiStatus = await twitterApi.getApiStatus();
+      if (!apiStatus.configured || apiStatus.operational === false) {
+        log(`Twitter API not operational: ${apiStatus.message}`, 'platform-api');
+        return null;
+      }
+      
       // Not in cache, fetch from API
       const result = await twitterApi.fetchUserData(username);
       
@@ -136,8 +143,8 @@ class PlatformApiService {
    * Check platform API status
    * @returns Status of all platform APIs
    */
-  public getPlatformStatus(): Record<string, { available: boolean; message: string }> {
-    const twitterStatus = twitterApi.getApiStatus();
+  public async getPlatformStatus(): Promise<Record<string, { available: boolean; operational?: boolean; message: string }>> {
+    const twitterStatus = await twitterApi.getApiStatus();
     
     return {
       instagram: {
@@ -146,6 +153,7 @@ class PlatformApiService {
       },
       twitter: {
         available: twitterStatus.configured,
+        operational: twitterStatus.operational,
         message: twitterStatus.message
       }
       // Add other platforms as they are implemented
