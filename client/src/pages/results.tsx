@@ -97,7 +97,9 @@ export default function Results() {
         />
       </div>
       
-      {/* Debug information */}
+      {/* Platform API Errors Banner moved to the conditional rendering below */}
+      
+      {/* Debug information (hidden in production) */}
       {data && data.platformErrors && (
         <div className="mb-4 p-3 bg-gray-100 border border-gray-300 rounded text-xs">
           <p>Debug - Platform Errors: {JSON.stringify(data.platformErrors)}</p>

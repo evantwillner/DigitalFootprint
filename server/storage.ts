@@ -452,6 +452,44 @@ export class MemStorage implements IStorage {
         }
       }
       
+      // Check Instagram API status
+      if (platformsToFetch.includes("instagram") && platformStatus.instagram) {
+        const instagramStatus = platformStatus.instagram as unknown as { 
+          available?: boolean; 
+          configured?: boolean; 
+          message: string 
+        };
+        
+        // Log Instagram API status for debugging
+        console.log("Instagram API status check during response creation:", instagramStatus);
+        
+        // If Instagram API is not available or configured, add error message
+        if ((instagramStatus.available === false || instagramStatus.configured === false) && instagramStatus.message) {
+          platformErrors.instagram = instagramStatus.message;
+          console.log("Adding Instagram error to response:", instagramStatus.message);
+        }
+      }
+      
+      // Check if Instagram OAuth has issues
+      if (platformsToFetch.includes("instagram") && platformStatus.instagram_oauth) {
+        const instagramOAuthStatus = platformStatus.instagram_oauth as unknown as { 
+          configured: boolean; 
+          message: string 
+        };
+        
+        // Log Instagram OAuth status for debugging
+        console.log("Instagram OAuth status check during response creation:", instagramOAuthStatus);
+        
+        // If Instagram OAuth is not configured correctly, add error message
+        if (instagramOAuthStatus.configured === false && instagramOAuthStatus.message) {
+          // Only add this if we don't already have an Instagram error
+          if (!platformErrors.instagram) {
+            platformErrors.instagram = instagramOAuthStatus.message;
+            console.log("Adding Instagram OAuth error to response:", instagramOAuthStatus.message);
+          }
+        }
+      }
+      
       // Create the final response including any platform errors
       const response: DigitalFootprintResponse = {
         username: responseUsername,
