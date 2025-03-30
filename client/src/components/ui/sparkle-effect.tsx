@@ -57,6 +57,8 @@ interface SparkleEffectProps {
   colors?: string[];
   className?: string;
   size?: number;
+  trigger?: "hover" | "click" | "auto";
+  interval?: number; // Auto trigger interval in ms
 }
 
 export const SparkleEffect: React.FC<SparkleEffectProps> = ({
@@ -65,12 +67,40 @@ export const SparkleEffect: React.FC<SparkleEffectProps> = ({
   sparkleCount = 5,
   colors = ["#FFC700", "#FF6B6B", "#4DCCBD", "#9B5DE5"],
   className = "",
-  size = 16
+  size = 16,
+  trigger = "auto",
+  interval = 1000
 }) => {
   const [sparkles, setSparkles] = useState<number[]>([]);
-
+  const [isHovering, setIsHovering] = useState(false);
+  const [isClicked, setIsClicked] = useState(false);
+  
+  // Determine if we should show sparkles based on trigger type and state
+  const shouldShowSparkles = () => {
+    if (!isActive) return false;
+    
+    switch (trigger) {
+      case "hover":
+        return isHovering;
+      case "click":
+        return isClicked;
+      case "auto":
+      default:
+        return true;
+    }
+  };
+  
+  // Handle click events for click trigger
+  const handleClick = () => {
+    if (trigger === "click") {
+      setIsClicked(prev => !prev);
+    }
+  };
+  
+  // Update sparkles when active status changes or trigger conditions change
   useEffect(() => {
-    if (!isActive) {
+    // Clear sparkles if we shouldn't show them
+    if (!shouldShowSparkles()) {
       setSparkles([]);
       return;
     }
@@ -79,7 +109,7 @@ export const SparkleEffect: React.FC<SparkleEffectProps> = ({
     setSparkles(Array.from({ length: sparkleCount }, (_, i) => i));
     
     // Refreshing sparkles periodically
-    const interval = setInterval(() => {
+    const refreshInterval = setInterval(() => {
       setSparkles(prev => {
         if (prev.length === 0) return [];
         
@@ -89,14 +119,19 @@ export const SparkleEffect: React.FC<SparkleEffectProps> = ({
         newSparkles.splice(sparkleIndexToRemove, 1);
         return [...newSparkles, prev.length];
       });
-    }, 1000);
+    }, interval);
     
-    return () => clearInterval(interval);
-  }, [isActive, sparkleCount]);
+    return () => clearInterval(refreshInterval);
+  }, [isActive, sparkleCount, isHovering, isClicked, trigger, interval]);
   
   return (
-    <div className={`relative inline-block ${className}`}>
-      {isActive && sparkles.map(id => (
+    <div 
+      className={`relative inline-block ${className}`}
+      onMouseEnter={() => trigger === "hover" && setIsHovering(true)}
+      onMouseLeave={() => trigger === "hover" && setIsHovering(false)}
+      onClick={handleClick}
+    >
+      {shouldShowSparkles() && sparkles.map(id => (
         <Sparkle 
           key={id} 
           color={colors[id % colors.length]}

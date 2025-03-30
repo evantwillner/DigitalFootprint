@@ -27,6 +27,7 @@ export const PAGE_TITLES = {
   settings: "Account Settings",
   history: "Search History",
   deletion: "Deletion Requests",
+  sparkle: "Sparkle Effect for Insights",
   help: "Help & Support"
 };
 
@@ -35,6 +36,7 @@ export const NAV_ITEMS = [
   { name: "Dashboard", path: "/", icon: "dashboard" },
   { name: "Recent Searches", path: "/history", icon: "history" },
   { name: "Deletion Requests", path: "/deletion", icon: "delete" },
+  { name: "Sparkle Effects", path: "/sparkle", icon: "auto_awesome" },
   { name: "Settings", path: "/settings", icon: "settings" }
 ];
 

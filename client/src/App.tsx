@@ -15,6 +15,7 @@ import Subscribe from "@/pages/subscribe";
 import PaymentSuccess from "@/pages/payment-success";
 import SubscriptionSuccess from "@/pages/subscription-success";
 import SettingsPage from "@/pages/settings-page";
+import SparklePage from "@/pages/sparkle-page";
 import { ProtectedRoute } from "@/lib/protected-route";
 import { AuthProvider } from "@/hooks/use-auth";
 import AuthPage from "@/pages/auth-page";
@@ -56,6 +57,7 @@ function Router() {
         <ProtectedRoute path="/payment-success" component={PaymentSuccess} />
         <ProtectedRoute path="/subscription-success" component={SubscriptionSuccess} />
         <ProtectedRoute path="/settings" component={SettingsPage} />
+        <Route path="/sparkle" component={SparklePage} />
         {/* Add any additional routes here */}
         <Route component={NotFound} />
       </Switch>
