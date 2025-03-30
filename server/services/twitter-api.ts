@@ -1,6 +1,7 @@
 import { TwitterApi } from 'twitter-api-v2';
 import { Platform, PlatformData } from '@shared/schema';
 import { log } from '../vite';
+import { openAiSentiment } from './openai-sentiment';
 
 /**
  * Twitter API Service - Manages interactions with the Twitter/X API
@@ -245,8 +246,8 @@ export class TwitterApiService {
       
       const tweets = tweetsResponse.data.data || [];
       
-      // Transform data to our platform format
-      const result = this.transformUserData(user, tweets, normalizedUsername);
+      // Transform data to our platform format (this is now async)
+      const result: PlatformData = await this.transformUserData(user, tweets, normalizedUsername);
       
       // Cache the result
       this.userDataCache.set(normalizedUsername, {
@@ -522,11 +523,116 @@ export class TwitterApiService {
   /**
    * Transform Twitter API data to our platform format
    */
-  private transformUserData(
+  /**
+   * Analyze sentiment of tweet content using OpenAI
+   * @param tweets Array of tweets to analyze
+   * @returns Sentiment breakdown
+   */
+  private async analyzeSentiment(tweets: any[]): Promise<{
+    positive: number;
+    neutral: number;
+    negative: number;
+  }> {
+    // Check if there's content to analyze
+    if (!tweets || tweets.length === 0) {
+      return { positive: 0.33, neutral: 0.34, negative: 0.33 };
+    }
+    
+    // Check if OpenAI service is operational
+    const openAiStatus = openAiSentiment.getStatus();
+    
+    if (openAiStatus.operational) {
+      try {
+        // Use OpenAI batch sentiment analysis for more accurate results
+        log('Using OpenAI for Twitter sentiment analysis', 'twitter-api');
+        
+        // Extract content text for analysis
+        const contentTexts = tweets
+          .filter(tweet => tweet.text && tweet.text.length > 0)
+          .map(tweet => tweet.text);
+        
+        // If we have content to analyze
+        if (contentTexts.length > 0) {
+          const results = await openAiSentiment.analyzeSentimentBatch(contentTexts);
+          log(`Twitter sentiment analysis complete. Positive: ${results.positive.toFixed(2)}, Neutral: ${results.neutral.toFixed(2)}, Negative: ${results.negative.toFixed(2)}`, 'twitter-api');
+          return {
+            positive: results.positive,
+            neutral: results.neutral,
+            negative: results.negative
+          };
+        }
+      } catch (error) {
+        // Log error and fall back to simple calculation
+        log(`Error using OpenAI for Twitter sentiment analysis: ${error}. Falling back to simple calculation.`, 'twitter-api');
+      }
+    }
+    
+    // Fallback to simple keyword-based sentiment analysis
+    log('Using simple sentiment analysis for Twitter content', 'twitter-api');
+    
+    // Simple sentiment analysis based on keywords
+    const positiveWords = [
+      'happy', 'great', 'excellent', 'good', 'love', 'awesome', 'amazing',
+      'wonderful', 'best', 'fantastic', 'beautiful', 'perfect', 'thanks', 'thank you'
+    ];
+    
+    const negativeWords = [
+      'bad', 'terrible', 'awful', 'hate', 'dislike', 'horrible', 'worst',
+      'sucks', 'disappointed', 'poor', 'sad', 'angry', 'upset', 'unfortunately'
+    ];
+    
+    let positiveCount = 0;
+    let negativeCount = 0;
+    let neutralCount = 0;
+    
+    for (const tweet of tweets) {
+      if (!tweet.text) {
+        neutralCount++;
+        continue;
+      }
+      
+      const content = tweet.text.toLowerCase();
+      let isPositive = false;
+      let isNegative = false;
+      
+      // Check for positive keywords
+      for (const word of positiveWords) {
+        if (content.includes(word)) {
+          isPositive = true;
+          break;
+        }
+      }
+      
+      // Check for negative keywords
+      for (const word of negativeWords) {
+        if (content.includes(word)) {
+          isNegative = true;
+          break;
+        }
+      }
+      
+      if (isPositive && !isNegative) {
+        positiveCount++;
+      } else if (!isPositive && isNegative) {
+        negativeCount++;
+      } else {
+        neutralCount++;
+      }
+    }
+    
+    const total = Math.max(tweets.length, 1);
+    return {
+      positive: parseFloat((positiveCount / total).toFixed(2)),
+      neutral: parseFloat((neutralCount / total).toFixed(2)),
+      negative: parseFloat((negativeCount / total).toFixed(2))
+    };
+  }
+  
+  private async transformUserData(
     user: any,
     tweets: any[],
     username: string
-  ): PlatformData {
+  ): Promise<PlatformData> {
     const publicMetrics = user.public_metrics || {};
     
     // Calculate total engagement across tweets
@@ -546,6 +652,18 @@ export class TwitterApiService {
         shares: tweet.public_metrics?.retweet_count || 0,
       }
     }));
+    
+    // Analyze sentiment using OpenAI or fallback to simple keyword analysis
+    const sentimentResults = await this.analyzeSentiment(tweets);
+    
+    // Convert decimal values to percentages for display
+    const sentimentBreakdown = {
+      positive: Math.round(sentimentResults.positive * 100),
+      neutral: Math.round(sentimentResults.neutral * 100),
+      negative: Math.round(sentimentResults.negative * 100)
+    };
+    
+    log(`Twitter sentiment results for ${username}: Positive: ${sentimentBreakdown.positive}%, Neutral: ${sentimentBreakdown.neutral}%, Negative: ${sentimentBreakdown.negative}%`, 'twitter-api');
     
     return {
       platformId: 'twitter' as Platform,
@@ -581,11 +699,7 @@ export class TwitterApiService {
           { period: "Feb", count: 50 },
           { period: "Mar", count: 35 }
         ],
-        sentimentBreakdown: {
-          positive: 60,
-          neutral: 30,
-          negative: 10
-        },
+        sentimentBreakdown: sentimentBreakdown,
         privacyConcerns: [
           {
             type: "Location Sharing",

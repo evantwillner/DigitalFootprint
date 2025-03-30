@@ -9,6 +9,8 @@ import axios from 'axios';
 import { PlatformData, platformDataSchema } from '@shared/schema';
 import { RateLimiter } from './rate-limiter';
 import type { PlatformApiStatus } from '../services/types.d.ts';
+import { openAiSentiment } from './openai-sentiment';
+import { log } from '../vite';
 
 class FacebookApiService {
   private appId: string | undefined;
@@ -199,7 +201,10 @@ class FacebookApiService {
       // Analyze content for privacy metrics
       const privacyMetrics = this.analyzePrivacyMetrics(contentData);
       const hashtagAnalysis = this.analyzeHashtags(contentData);
-      const sentimentAnalysis = this.analyzeSentiment(contentData);
+      const sentimentAnalysis = await this.analyzeSentiment(contentData);
+      
+      // Log sentiment analysis results
+      log(`Facebook sentiment analysis for ${username}: Positive: ${sentimentAnalysis.sentimentBreakdown.positive}%, Neutral: ${sentimentAnalysis.sentimentBreakdown.neutral}%, Negative: ${sentimentAnalysis.sentimentBreakdown.negative}%`, 'facebook-api');
       
       // Construct the platform data object
       const platformData: PlatformData = {
@@ -473,7 +478,12 @@ class FacebookApiService {
    * @param contentData User content data
    * @returns Sentiment analysis data
    */
-  private analyzeSentiment(contentData: any[]): {
+  /**
+   * Analyze sentiment of content using OpenAI with fallback to keyword analysis
+   * @param contentData Array of content items to analyze
+   * @returns Sentiment analysis results
+   */
+  private async analyzeSentiment(contentData: any[]): Promise<{
     overallSentiment: 'positive' | 'neutral' | 'negative';
     sentimentScore: number;
     sentimentBreakdown: {
@@ -481,7 +491,72 @@ class FacebookApiService {
       neutral: number;
       negative: number;
     };
-  } {
+  }> {
+    // Check if there's content to analyze
+    if (!contentData || contentData.length === 0) {
+      return {
+        overallSentiment: 'neutral',
+        sentimentScore: 0,
+        sentimentBreakdown: {
+          positive: 33,
+          neutral: 34,
+          negative: 33
+        }
+      };
+    }
+    
+    // Check if OpenAI service is operational
+    const openAiStatus = openAiSentiment.getStatus();
+    
+    if (openAiStatus.operational) {
+      try {
+        // Use OpenAI batch sentiment analysis for more accurate results
+        log('Using OpenAI for Facebook sentiment analysis', 'facebook-api');
+        
+        // Extract content text for analysis
+        const contentTexts = contentData
+          .filter(post => post.content && post.content.length > 0)
+          .map(post => post.content);
+        
+        // If we have content to analyze
+        if (contentTexts.length > 0) {
+          const results = await openAiSentiment.analyzeSentimentBatch(contentTexts);
+          
+          log(`Facebook sentiment analysis complete. Positive: ${results.positive.toFixed(2)}, Neutral: ${results.neutral.toFixed(2)}, Negative: ${results.negative.toFixed(2)}`, 'facebook-api');
+          
+          // Convert decimal values to percentages
+          const sentimentBreakdown = {
+            positive: Math.round(results.positive * 100),
+            neutral: Math.round(results.neutral * 100),
+            negative: Math.round(results.negative * 100)
+          };
+          
+          // Calculate sentiment score (-100 to 100)
+          const sentimentScore = Math.round((results.positive - results.negative) * 100);
+          
+          // Determine overall sentiment
+          let overallSentiment: 'positive' | 'neutral' | 'negative' = 'neutral';
+          if (sentimentScore > 20) {
+            overallSentiment = 'positive';
+          } else if (sentimentScore < -20) {
+            overallSentiment = 'negative';
+          }
+          
+          return {
+            overallSentiment,
+            sentimentScore,
+            sentimentBreakdown
+          };
+        }
+      } catch (error) {
+        // Log error and fall back to simple calculation
+        log(`Error using OpenAI for Facebook sentiment analysis: ${error}. Falling back to simple calculation.`, 'facebook-api');
+      }
+    }
+    
+    // Fallback to simple keyword-based sentiment analysis
+    log('Using simple sentiment analysis for Facebook content', 'facebook-api');
+    
     // Simple sentiment analysis based on keywords
     const positiveWords = [
       'happy', 'great', 'excellent', 'good', 'love', 'awesome', 'amazing',
