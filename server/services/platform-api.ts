@@ -101,7 +101,45 @@ class PlatformApiService {
     
     // Use the Instagram API directly, which already handles rate limiting internally
     try {
-      return await instagramApi.fetchUserData(username);
+      const cacheKey = `instagram:${username}`;
+      
+      try {
+        const result = await instagramApi.fetchUserData(username);
+        if (result) {
+          // Cache for 1 hour (or longer for popular accounts)
+          let cacheTtl = this.CACHE_TTL.DEFAULT;
+          if (result.profileData?.followerCount && result.profileData.followerCount > 10000) {
+            cacheTtl = this.CACHE_TTL.POPULAR;
+          }
+          cacheService.platformData.set(cacheKey, result, cacheTtl);
+        }
+        return result;
+      } catch (apiError: any) {
+        // Handle specific error cases
+        if (apiError.message.startsWith('PERMISSION_ERROR:')) {
+          log(`Instagram API permission error for ${username}: ${apiError.message}`, 'platform-api');
+          throw new Error(`Instagram API permission error: ${apiError.message.split(': ')[1]}`);
+        }
+        
+        if (apiError.message.startsWith('NOT_FOUND:')) {
+          log(`Instagram resource not found for ${username}: ${apiError.message}`, 'platform-api');
+          cacheService.platformData.set(cacheKey, null, this.CACHE_TTL.ERROR);
+          return null;
+        }
+        
+        if (apiError.message.startsWith('RATE_LIMITED:')) {
+          log(`Instagram API rate limit exceeded for ${username}`, 'platform-api');
+          throw new Error(`Instagram API rate limit exceeded. Please try again later.`);
+        }
+        
+        if (apiError.message.startsWith('AUTH_ERROR:')) {
+          log(`Instagram API authentication error: ${apiError.message}`, 'platform-api');
+          throw new Error(`Instagram API authentication failed. Please update your API credentials.`);
+        }
+        
+        // Re-throw the error for generic handling
+        throw apiError;
+      }
     } catch (error: any) {
       log(`Error in Instagram API call: ${error.message}`, 'platform-api');
       return null;
@@ -134,18 +172,45 @@ class PlatformApiService {
       }
       
       // Not in cache, fetch from API
-      const result = await twitterApi.fetchUserData(username);
-      
-      if (result) {
-        // Cache for 1 hour (or longer for popular accounts)
-        let cacheTtl = this.CACHE_TTL.DEFAULT;
-        if (result.profileData?.followerCount && result.profileData.followerCount > 10000) {
-          cacheTtl = this.CACHE_TTL.POPULAR;
+      try {
+        const result = await twitterApi.fetchUserData(username);
+        
+        if (result) {
+          // Cache for 1 hour (or longer for popular accounts)
+          let cacheTtl = this.CACHE_TTL.DEFAULT;
+          if (result.profileData?.followerCount && result.profileData.followerCount > 10000) {
+            cacheTtl = this.CACHE_TTL.POPULAR;
+          }
+          cacheService.platformData.set(cacheKey, result, cacheTtl);
         }
-        cacheService.platformData.set(cacheKey, result, cacheTtl);
+        
+        return result;
+      } catch (apiError: any) {
+        // Handle specific error cases
+        if (apiError.message.startsWith('PERMISSION_ERROR:')) {
+          log(`Twitter API permission error for ${username}: ${apiError.message}`, 'platform-api');
+          throw new Error(`Twitter API permission error: ${apiError.message.split(': ')[1]}`);
+        }
+        
+        if (apiError.message.startsWith('NOT_FOUND:')) {
+          log(`Twitter resource not found for ${username}: ${apiError.message}`, 'platform-api');
+          cacheService.platformData.set(cacheKey, null, this.CACHE_TTL.ERROR);
+          return null;
+        }
+        
+        if (apiError.message.startsWith('RATE_LIMITED:')) {
+          log(`Twitter API rate limit exceeded for ${username}`, 'platform-api');
+          throw new Error(`Twitter API rate limit exceeded. Please try again later.`);
+        }
+        
+        if (apiError.message.startsWith('AUTH_ERROR:')) {
+          log(`Twitter API authentication error: ${apiError.message}`, 'platform-api');
+          throw new Error(`Twitter API authentication failed. Please update your API credentials.`);
+        }
+        
+        // Re-throw the error for generic handling
+        throw apiError;
       }
-      
-      return result;
     } catch (error: any) {
       log(`Error fetching Twitter data: ${error.message}`, 'platform-api');
       return null;
@@ -177,18 +242,49 @@ class PlatformApiService {
       }
       
       // Not in cache, fetch from API
-      const result = await facebookApi.fetchUserData(username);
-      
-      if (result) {
-        // Cache for 1 hour (or longer for popular accounts)
-        let cacheTtl = this.CACHE_TTL.DEFAULT;
-        if (result.profileData?.followerCount && result.profileData.followerCount > 10000) {
-          cacheTtl = this.CACHE_TTL.POPULAR;
+      try {
+        const result = await facebookApi.fetchUserData(username);
+        
+        if (result) {
+          // Cache for 1 hour (or longer for popular accounts)
+          let cacheTtl = this.CACHE_TTL.DEFAULT;
+          if (result.profileData?.followerCount && result.profileData.followerCount > 10000) {
+            cacheTtl = this.CACHE_TTL.POPULAR;
+          }
+          cacheService.platformData.set(cacheKey, result, cacheTtl);
         }
-        cacheService.platformData.set(cacheKey, result, cacheTtl);
+        
+        return result;
+      } catch (apiError: any) {
+        // Handle specific error cases
+        if (apiError.message.startsWith('PERMISSION_ERROR:')) {
+          log(`Facebook API permission error for ${username}: ${apiError.message}`, 'platform-api');
+          // Cache the error for a short time to prevent repeated failed requests
+          // We return null here, but the error message will be propagated in the routes
+          cacheService.platformData.set(cacheKey, null, this.CACHE_TTL.ERROR);
+          throw new Error(`Facebook API permission error: ${apiError.message.split(': ')[1]}`);
+        }
+        
+        if (apiError.message.startsWith('NOT_FOUND:')) {
+          log(`Facebook resource not found for ${username}: ${apiError.message}`, 'platform-api');
+          // Cache "not found" results to avoid repeated lookups
+          cacheService.platformData.set(cacheKey, null, this.CACHE_TTL.ERROR);
+          return null;
+        }
+        
+        if (apiError.message.startsWith('RATE_LIMITED:')) {
+          log(`Facebook API rate limit exceeded for ${username}`, 'platform-api');
+          throw new Error(`Facebook API rate limit exceeded. Please try again later.`);
+        }
+        
+        if (apiError.message.startsWith('AUTH_ERROR:')) {
+          log(`Facebook API authentication error: ${apiError.message}`, 'platform-api');
+          throw new Error(`Facebook API authentication failed. Please update your API credentials.`);
+        }
+        
+        // Re-throw the error for generic handling
+        throw apiError;
       }
-      
-      return result;
     } catch (error: any) {
       log(`Error fetching Facebook data: ${error.message}`, 'platform-api');
       return null;

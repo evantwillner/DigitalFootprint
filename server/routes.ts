@@ -35,8 +35,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const apiRouter = express.Router();
   app.use("/api", apiRouter);
   
-  // Error handler for Zod validation errors
-  const handleZodError = (err: unknown, res: Response) => {
+  // Error handler for API validation and platform-specific errors
+  const handleApiError = (err: unknown, res: Response) => {
     if (err instanceof ZodError) {
       const validationError = fromZodError(err);
       return res.status(400).json({ 
@@ -44,8 +44,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
         errors: validationError.details 
       });
     }
-    console.error(err);
-    return res.status(500).json({ message: "Internal server error" });
+    
+    // Handle specific platform API error types
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    
+    // Rate limiting errors
+    if (errorMessage.includes('RATE_LIMITED') || errorMessage.includes('rate limit exceeded')) {
+      return res.status(429).json({ 
+        message: "Rate limit exceeded", 
+        error: errorMessage 
+      });
+    }
+    
+    // Authentication errors
+    if (errorMessage.includes('AUTH_ERROR') || errorMessage.includes('authentication failed')) {
+      return res.status(401).json({ 
+        message: "API authentication error", 
+        error: errorMessage 
+      });
+    }
+    
+    // Permission errors
+    if (errorMessage.includes('PERMISSION_ERROR') || errorMessage.includes('permission')) {
+      return res.status(403).json({ 
+        message: "API permission error", 
+        error: errorMessage 
+      });
+    }
+    
+    // Not found errors
+    if (errorMessage.includes('NOT_FOUND') || errorMessage.includes('not found')) {
+      return res.status(404).json({ 
+        message: "Resource not found", 
+        error: errorMessage 
+      });
+    }
+    
+    // Log the full error for debugging
+    console.error("API Error:", err);
+    
+    // Generic server error for unhandled cases
+    return res.status(500).json({ 
+      message: "Internal server error", 
+      error: errorMessage 
+    });
   };
 
   // Search for digital footprint
@@ -140,7 +182,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       return res.json(result);
     } catch (err) {
-      return handleZodError(err, res);
+      return handleApiError(err, res);
     }
   });
   
@@ -202,17 +244,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       return res.status(201).json(result);
     } catch (err) {
-      // Enhanced error handling
-      if (err instanceof ZodError) {
-        return handleZodError(err, res);
-      }
-      
       // Log all errors for security monitoring
       console.error("Deletion request error:", err);
-      return res.status(500).json({ 
-        message: "Internal server error",
-        error: "An unexpected error occurred while processing your deletion request."
-      });
+      
+      // Enhanced error handling for all API errors
+      return handleApiError(err, res);
     }
   });
   
@@ -292,15 +328,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
     } catch (err) {
-      if (err instanceof ZodError) {
-        return handleZodError(err, res);
-      }
-      
-      console.error("Platform deletion error:", err);
-      return res.status(500).json({
-        success: false,
-        message: "An error occurred while processing your deletion request"
-      });
+      // Use the comprehensive API error handler
+      return handleApiError(err, res);
     }
   });
   

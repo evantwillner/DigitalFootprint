@@ -262,14 +262,21 @@ export class TwitterApiService {
         log('Twitter API rate limit exceeded, will retry later', 'twitter-api');
         // We'll remember we got rate limited
         this.handleRateLimitExceeded();
+        throw new Error('RATE_LIMITED: Twitter API rate limit exceeded. Please try again later.');
       } else if (error.code === 401 || error.message.includes('401')) {
         log('Twitter API authentication failed - credentials may be expired or invalid', 'twitter-api');
         // Mark the API as not properly configured so future calls will fail quickly
         this.isConfigured = false;
+        throw new Error('AUTH_ERROR: Twitter API authentication failed. Access tokens may be invalid or expired.');
       } else if (error.code === 403) {
         log('Twitter API permission denied - credentials may lack necessary scopes', 'twitter-api');
+        throw new Error('PERMISSION_ERROR: Twitter API requires additional permissions to access this data.');
+      } else if (error.code === 50 || error.message.includes('not found')) {
+        log('Twitter user not found', 'twitter-api');
+        throw new Error(`NOT_FOUND: Twitter user does not exist or cannot be accessed.`);
       }
       
+      // For other errors, return null
       return null;
     }
   }

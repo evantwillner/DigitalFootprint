@@ -8,7 +8,7 @@
 import axios from 'axios';
 import { PlatformData, platformDataSchema } from '@shared/schema';
 import { RateLimiter } from './rate-limiter';
-import { PlatformApiStatus } from './types';
+import type { PlatformApiStatus } from '../services/types.d.ts';
 
 class FacebookApiService {
   private appId: string | undefined;
@@ -286,9 +286,42 @@ class FacebookApiService {
       return platformData;
     } catch (error: any) {
       console.error('Error fetching Facebook user data:', error.message);
+      
+      // Extract detailed error information from Facebook API response
       if (error.response?.data?.error) {
-        console.error('Facebook API error details:', error.response.data.error);
+        const fbError = error.response.data.error;
+        console.error('Facebook API error details:', fbError);
+        
+        // Check for specific permission issues
+        if (fbError.code === 100) {
+          if (fbError.message.includes('missing permission')) {
+            console.error('Facebook API permission error: The access token is missing required permissions.');
+            console.error('Required permissions may include: pages_read_engagement, Page Public Content Access');
+            
+            // Throw a more specific error that can be caught by the platform API
+            throw new Error('PERMISSION_ERROR: Facebook API requires additional permissions to access this data.');
+          }
+          
+          if (fbError.message.includes('Object does not exist')) {
+            console.error('Facebook API error: The requested username or ID does not exist or is not accessible.');
+            throw new Error('NOT_FOUND: The Facebook username or page does not exist or cannot be accessed.');
+          }
+        }
+        
+        // Rate limiting detection
+        if (fbError.code === 4 || fbError.message.includes('rate limit')) {
+          console.error('Facebook API rate limit exceeded.');
+          throw new Error('RATE_LIMITED: Facebook API rate limit exceeded. Please try again later.');
+        }
+        
+        // Authentication errors
+        if (fbError.code === 190) {
+          console.error('Facebook API authentication error: The access token is invalid or has expired.');
+          throw new Error('AUTH_ERROR: Facebook API authentication failed. Access token may be invalid or expired.');
+        }
       }
+      
+      // Default error case
       return null;
     }
   }

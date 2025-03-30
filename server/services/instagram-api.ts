@@ -435,6 +435,28 @@ export class InstagramApiService {
     
     // If we got here, all methods failed
     log(`All Instagram API methods failed for username ${username}. Errors: ${errorMessages.join('; ')}`, 'instagram-api');
+    
+    // Analyze error messages to return more specific errors
+    const allErrors = errorMessages.join(' ');
+    
+    if (allErrors.includes('not found') || allErrors.includes('404')) {
+      throw new Error(`NOT_FOUND: Instagram user ${username} does not exist or is not accessible`);
+    }
+    
+    if (allErrors.includes('rate limit') || allErrors.includes('429')) {
+      throw new Error(`RATE_LIMITED: Instagram API rate limit exceeded. Please try again later.`);
+    }
+    
+    if (allErrors.includes('unauthorized') || allErrors.includes('invalid token') || 
+        allErrors.includes('401') || allErrors.includes('authentication')) {
+      throw new Error(`AUTH_ERROR: Instagram authentication failed. Access tokens may be invalid or expired.`);
+    }
+    
+    if (allErrors.includes('permission')) {
+      throw new Error(`PERMISSION_ERROR: Instagram API requires additional permissions to access this data.`);
+    }
+    
+    // Generic failure case
     return null;
   }
   

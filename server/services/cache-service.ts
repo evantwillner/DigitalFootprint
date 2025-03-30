@@ -143,7 +143,7 @@ export class CacheService<T> {
 }
 
 // Create specialized caches for different data types
-export const platformDataCache = new CacheService<PlatformData>({
+export const platformDataCache = new CacheService<PlatformData | null>({
   maxSize: 5000,
   defaultTTL: 3600000 // 1 hour for platform data
 });
