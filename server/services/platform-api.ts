@@ -7,7 +7,7 @@
 
 import { Platform, PlatformData } from '@shared/schema';
 import { log } from '../vite';
-import { instagramApiV3 } from './instagram-api-v3';
+import { instagramApi } from './instagram-api';
 import { twitterApi } from './twitter-api';
 import { cacheService } from './cache-service';
 import { rateLimiters } from './rate-limiter';
@@ -86,7 +86,7 @@ class PlatformApiService {
    */
   private async fetchInstagramData(username: string): Promise<PlatformData | null> {
     // Check API status before fetching data
-    const apiStatus = instagramApiV3.getApiStatus();
+    const apiStatus = await instagramApi.getApiStatus();
     
     // Log the current Instagram API status
     console.log(`Instagram API status before fetching data for ${username}:`, apiStatus);
@@ -96,17 +96,11 @@ class PlatformApiService {
       return null;
     }
     
-    // Use the Instagram-specific rate limiter
+    // Use the Instagram API directly, which already handles rate limiting internally
     try {
-      return rateLimiters.instagram.schedule({
-        execute: () => instagramApiV3.fetchUserData(username),
-        platform: 'instagram',
-        username,
-        // Higher priority for users with OAuth tokens
-        priority: instagramApiV3.hasValidCredentials() ? 2 : 1
-      });
+      return await instagramApi.fetchUserData(username);
     } catch (error: any) {
-      log(`Error in Instagram rate limiter or API call: ${error.message}`, 'platform-api');
+      log(`Error in Instagram API call: ${error.message}`, 'platform-api');
       return null;
     }
   }
@@ -161,37 +155,18 @@ class PlatformApiService {
    */
   public async getPlatformStatus(): Promise<Record<string, { available: boolean; operational?: boolean; configured?: boolean; message: string }>> {
     const twitterStatus = await twitterApi.getApiStatus();
-    const instagramStatus = instagramApiV3.getApiStatus();
+    const instagramStatus = await instagramApi.getApiStatus();
     
     // Log the returned API statuses
     console.log("Twitter API status returned by TwitterApiService:", twitterStatus);
     console.log("Instagram API status returned by InstagramApiService:", instagramStatus);
     
-    // For Instagram, perform additional operational check
-    let instagramOperational = instagramApiV3.hasValidCredentials();
-    
-    // Always verify Instagram token if we have one
-    if (instagramOperational) {
-      try {
-        // A more detailed check could be implemented here to test if the token is still valid
-        // For now, we trust hasValidCredentials() to correctly check token validity
-        console.log("Instagram credentials appear to be valid");
-      } catch (error: any) {
-        console.log("Instagram credentials check failed:", error.message);
-        instagramOperational = false;
-      }
-    }
-    
     return {
       instagram: {
         available: true, // API is always available to try
         configured: instagramStatus.configured,
-        operational: instagramOperational, 
-        message: !instagramStatus.configured
-          ? "Instagram API not configured. Please set up API credentials."
-          : (!instagramOperational 
-              ? "Instagram API credentials are configured but not working. Credentials may be expired or invalid."
-              : "Instagram API configured and operational.")
+        operational: instagramStatus.operational, 
+        message: instagramStatus.message
       },
       twitter: {
         available: twitterStatus.configured,
