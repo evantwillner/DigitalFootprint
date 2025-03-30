@@ -420,17 +420,18 @@ export class InstagramApiServiceV3 {
    */
   private async fetchViaPublicProfile(username: string): Promise<PlatformData | null> {
     try {
-      // Use a more modern approach for fetching Instagram profiles
-      // Instagram now uses GraphQL for their public API
-      const graphqlUrl = `https://www.instagram.com/graphql/query/?query_hash=c9100bf9110dd6361671f113dd02e7d6&variables={"username":"${username}","include_reel":true,"include_logged_out":true}`;
+      // Try the more reliable public API approach first
+      // This URL returns JSON data directly without needing specific query hashes
+      const publicApiUrl = `https://www.instagram.com/${username}/?__a=1&__d=dis`;
       
-      const response = await axios.get(graphqlUrl, {
+      const response = await axios.get(publicApiUrl, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-          'Accept': 'application/json',
+          'Accept': 'application/json, text/plain, */*',
           'Accept-Language': 'en-US,en;q=0.9',
           'Referer': 'https://www.instagram.com/',
           'X-IG-App-ID': '936619743392459',
+          'Cookie': 'ig_did=0; csrftoken=missing; mid=missing;', // Minimal required cookies
           'Cache-Control': 'no-cache',
           'Pragma': 'no-cache',
           'Sec-Fetch-Dest': 'empty',
@@ -439,29 +440,17 @@ export class InstagramApiServiceV3 {
         }
       });
       
-      // Check if we got valid data from GraphQL
+      // Check different response formats that Instagram may return
       if (response.data?.data?.user) {
-        log(`Successfully retrieved GraphQL data for Instagram user ${username}`, 'instagram-api');
+        log(`Successfully retrieved user data format 1 for Instagram user ${username}`, 'instagram-api');
         return this.transformPublicData(response.data.data.user, username);
+      } else if (response.data?.graphql?.user) {
+        log(`Successfully retrieved user data format 2 for Instagram user ${username}`, 'instagram-api');
+        return this.transformPublicData(response.data.graphql.user, username);
       }
       
-      // If GraphQL approach didn't work, try the old method for JSON data embedded in the page
-      log(`GraphQL approach failed for ${username}, trying alternative methods`, 'instagram-api');
-      
-      const jsonResponse = await axios.get(`https://www.instagram.com/${username}/?__a=1&__d=dis`, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/json',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Cache-Control': 'no-cache'
-        }
-      });
-      
-      // Check if we got data
-      if (jsonResponse.data?.graphql?.user) {
-        log(`Successfully retrieved embedded JSON data for Instagram user ${username}`, 'instagram-api');
-        return this.transformPublicData(jsonResponse.data.graphql.user, username);
-      }
+      // If the direct API approach didn't work, try HTML scraping as fallback
+      log(`Public API approach failed for ${username}, trying HTML scraping`, 'instagram-api');
       
       // Try direct HTML scraping as a last resort
       const htmlResponse = await axios.get(`https://www.instagram.com/${username}/`, {

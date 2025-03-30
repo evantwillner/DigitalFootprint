@@ -1,6 +1,7 @@
 import express, { type Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { log } from "./vite";
 import { 
   SearchQuery, 
   searchQuerySchema,
@@ -569,6 +570,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: false,
         message: "Error checking Instagram authorization status",
         error: error.message
+      });
+    }
+  });
+  
+  // Get OAuth authorization URL for Instagram without authentication
+  apiRouter.get("/debug/instagram-auth", async (_req: Request, res: Response) => {
+    try {
+      // Use dynamic import to avoid circular dependencies
+      const { instagramOAuth } = await import('./services/instagram-oauth');
+      
+      if (!instagramOAuth.isConfigured()) {
+        return res.status(400).json({
+          success: false,
+          message: "Instagram OAuth is not properly configured"
+        });
+      }
+      
+      // Return the URL rather than redirecting for testing purposes
+      const authUrl = instagramOAuth.getAuthorizationUrl();
+      return res.json({
+        success: true,
+        message: "Instagram authentication URL generated",
+        authUrl: authUrl,
+        isConfigured: instagramOAuth.isConfigured(),
+        hasValidToken: instagramOAuth.hasValidToken()
+      });
+    } catch (error: any) {
+      console.error("Error generating Instagram auth URL:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Error generating Instagram authorization URL",
+        error: error.message
+      });
+    }
+  });
+  
+  // API test endpoint - for debugging purposes
+  apiRouter.get("/test/instagram/:username", async (req: Request, res: Response) => {
+    try {
+      const { username } = req.params;
+      console.log(`Testing Instagram API for username: ${username}`);
+      
+      // Use dynamic import to avoid circular dependencies
+      const { instagramApiV3 } = await import('./services/instagram-api-v3');
+      
+      // Try to fetch data from Instagram
+      const result = await instagramApiV3.fetchUserData(username);
+      
+      if (result) {
+        // Only return basic profile info to avoid exposing sensitive data
+        const apiStatus = instagramApiV3.getApiStatus();
+        
+        // Extract data with null checks
+        const profileData = result.profileData || {};
+        const activityData = result.activityData || {};
+        
+        // Format bio with length check
+        let bioText = "No bio available";
+        if (profileData.bio) {
+          bioText = profileData.bio.substring(0, 50);
+          if (profileData.bio.length > 50) {
+            bioText += '...';
+          }
+        }
+        
+        const testResult = {
+          success: true,
+          message: "Successfully retrieved Instagram data",
+          apiStatus,
+          username: result.username,
+          displayName: profileData.displayName || "Unknown",
+          bio: bioText,
+          followerCount: profileData.followerCount || 0,
+          postCount: activityData.totalPosts || 0,
+          dataAvailable: true
+        };
+        res.json(testResult);
+      } else {
+        res.status(404).json({
+          success: false,
+          message: "No data found for this username",
+          apiStatus: instagramApiV3.getApiStatus(),
+          username,
+          dataAvailable: false
+        });
+      }
+    } catch (error: any) {
+      console.error(`Error testing Instagram API: ${error.message}`);
+      res.status(500).json({
+        success: false,
+        message: `API error: ${error.message}`,
+        error: error.message,
+        dataAvailable: false
       });
     }
   });
