@@ -10,6 +10,7 @@ import axios from 'axios';
 import { Platform, PlatformData } from '@shared/schema';
 import { log } from '../vite';
 import type { PlatformApiStatus } from './types.d.ts';
+import { openAiSentiment } from './openai-sentiment';
 
 export class RedditApiService {
   private isConfigured: boolean = false;
@@ -247,35 +248,74 @@ export class RedditApiService {
         ? (submissions.length / accountAgeInDays) 
         : 0;
       
-      // Format content data
-      const contentData = [
-        // Add posts/submissions
-        ...submissions.slice(0, 10).map((post: any) => ({
-          type: 'post' as const,
-          content: post.data.title + (post.data.selftext ? `\n\n${post.data.selftext.substring(0, 300)}${post.data.selftext.length > 300 ? '...' : ''}` : ''),
-          timestamp: new Date(post.data.created_utc * 1000).toISOString(),
-          url: `https://reddit.com${post.data.permalink}`,
-          engagement: {
-            likes: post.data.ups,
-            comments: post.data.num_comments
-          },
-          sentiment: this.determineSentiment(post.data.title + post.data.selftext),
-          topics: [post.data.subreddit]
-        })),
-        
-        // Add comments
-        ...comments.slice(0, 15).map((comment: any) => ({
-          type: 'comment' as const,
-          content: comment.data.body.substring(0, 300) + (comment.data.body.length > 300 ? '...' : ''),
-          timestamp: new Date(comment.data.created_utc * 1000).toISOString(),
-          url: `https://reddit.com${comment.data.permalink}`,
-          engagement: {
-            likes: comment.data.ups
-          },
-          sentiment: this.determineSentiment(comment.data.body),
-          topics: [comment.data.subreddit]
-        }))
-      ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      // First, prepare content data structure without sentiment analysis
+      const formattedPosts = submissions.slice(0, 10).map((post: any) => ({
+        type: 'post' as const,
+        content: post.data.title + (post.data.selftext ? `\n\n${post.data.selftext.substring(0, 300)}${post.data.selftext.length > 300 ? '...' : ''}` : ''),
+        timestamp: new Date(post.data.created_utc * 1000).toISOString(),
+        url: `https://reddit.com${post.data.permalink}`,
+        engagement: {
+          likes: post.data.ups,
+          comments: post.data.num_comments
+        },
+        sentiment: 'neutral' as 'positive' | 'neutral' | 'negative', // Default, will be updated
+        topics: [post.data.subreddit]
+      }));
+      
+      const formattedComments = comments.slice(0, 15).map((comment: any) => ({
+        type: 'comment' as const,
+        content: comment.data.body.substring(0, 300) + (comment.data.body.length > 300 ? '...' : ''),
+        timestamp: new Date(comment.data.created_utc * 1000).toISOString(),
+        url: `https://reddit.com${comment.data.permalink}`,
+        engagement: {
+          likes: comment.data.ups
+        },
+        sentiment: 'neutral' as 'positive' | 'neutral' | 'negative', // Default, will be updated
+        topics: [comment.data.subreddit]
+      }));
+      
+      // Combine and sort by timestamp
+      const contentData = [...formattedPosts, ...formattedComments].sort(
+        (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      );
+      
+      // Process sentiment analysis
+      const openAiStatus = openAiSentiment.getStatus();
+      if (openAiStatus.operational) {
+        try {
+          // Extract just the texts for batch analysis
+          const contentTexts = contentData.map(item => item.content);
+          
+          // Perform batch sentiment analysis with OpenAI
+          log(`Analyzing sentiment for ${contentTexts.length} content items`, 'reddit-api');
+          const batchResults = await openAiSentiment.analyzeSentimentBatch(contentTexts);
+          
+          // Apply sentiment results to the content data
+          batchResults.detailedBreakdown.forEach((result, index) => {
+            if (index < contentData.length) {
+              contentData[index].sentiment = result.sentiment;
+            }
+          });
+          
+        } catch (error) {
+          log(`Failed to perform batch sentiment analysis: ${error}. Processing individually.`, 'reddit-api');
+          
+          // Process each content item individually
+          for (let i = 0; i < contentData.length; i++) {
+            try {
+              contentData[i].sentiment = await this.determineSentiment(contentData[i].content);
+            } catch (err) {
+              log(`Error determining sentiment for content item: ${err}`, 'reddit-api');
+            }
+          }
+        }
+      } else {
+        // OpenAI not available, process individually using simple sentiment
+        log('OpenAI not available. Using simple sentiment analysis for each content item.', 'reddit-api');
+        for (let i = 0; i < contentData.length; i++) {
+          contentData[i].sentiment = this.determineSimpleSentiment(contentData[i].content);
+        }
+      }
       
       // Calculate exposure score (1-100) based on karma and activity
       const karmaTotal = postKarma + commentKarma;
@@ -351,7 +391,7 @@ export class RedditApiService {
         },
         analysisResults: {
           exposureScore,
-          sentimentBreakdown: this.calculateSentimentBreakdown(contentData),
+          sentimentBreakdown: await this.calculateSentimentBreakdown(contentData),
           topTopics: this.extractTopTopics(topSubreddits, contentData),
           // Generate activity timeline data
           activityTimeline: this.generateActivityTimeline(submissions, comments),
@@ -416,7 +456,11 @@ export class RedditApiService {
    * @param text Content to analyze
    * @returns Sentiment category
    */
-  private determineSentiment(text: string): 'positive' | 'neutral' | 'negative' {
+  /**
+   * Simple fallback sentiment analysis using word matching
+   * Used as a backup when OpenAI is not available
+   */
+  private determineSimpleSentiment(text: string): 'positive' | 'neutral' | 'negative' {
     if (!text) return 'neutral';
     
     const positiveWords = ['happy', 'good', 'great', 'excellent', 'awesome', 'amazing', 'love', 'best', 'thanks', 'appreciate', 'helpful', 'perfect', 'recommend'];
@@ -440,22 +484,87 @@ export class RedditApiService {
   }
   
   /**
+   * Determine sentiment of text using OpenAI when available,
+   * falling back to simple analysis when needed
+   */
+  private async determineSentiment(text: string): Promise<'positive' | 'neutral' | 'negative'> {
+    if (!text) return 'neutral';
+    
+    // Check if OpenAI service is available and operational
+    const openAiStatus = openAiSentiment.getStatus();
+    
+    if (openAiStatus.operational && text.length > 0) {
+      try {
+        // Try to use OpenAI for more accurate sentiment analysis
+        log('Using OpenAI for sentiment analysis', 'reddit-api');
+        const result = await openAiSentiment.analyzeSentiment(text);
+        return result.sentiment;
+      } catch (error) {
+        // Log error and fall back to simple sentiment analysis
+        log(`Error using OpenAI for sentiment analysis: ${error}. Falling back to simple analysis.`, 'reddit-api');
+        return this.determineSimpleSentiment(text);
+      }
+    } else {
+      // Use simple sentiment analysis if OpenAI is not available
+      if (!openAiStatus.operational) {
+        log('OpenAI service not operational. Using simple sentiment analysis.', 'reddit-api');
+      }
+      return this.determineSimpleSentiment(text);
+    }
+  }
+  
+  /**
    * Calculate sentiment breakdown from content data
    * @param contentData Array of content items
-   * @returns Sentiment percentages
+   * @returns Sentiment percentages between 0-1
    */
-  private calculateSentimentBreakdown(contentData: any[]): { positive: number, neutral: number, negative: number } {
+  private async calculateSentimentBreakdown(contentData: any[]): Promise<{ positive: number, neutral: number, negative: number }> {
     if (!contentData || contentData.length === 0) {
       return { positive: 0.33, neutral: 0.34, negative: 0.33 };
     }
     
+    // Check if OpenAI service is operational
+    const openAiStatus = openAiSentiment.getStatus();
+    
+    if (openAiStatus.operational) {
+      try {
+        // Use OpenAI batch sentiment analysis for more accurate results
+        log('Using OpenAI for batch sentiment analysis', 'reddit-api');
+        
+        // Extract content text for analysis
+        const contentTexts = contentData
+          .filter(item => item.content && item.content.length > 0)
+          .map(item => item.content);
+        
+        // If we have content to analyze
+        if (contentTexts.length > 0) {
+          const results = await openAiSentiment.analyzeSentimentBatch(contentTexts);
+          log(`OpenAI sentiment analysis complete. Positive: ${results.positive.toFixed(2)}, Neutral: ${results.neutral.toFixed(2)}, Negative: ${results.negative.toFixed(2)}`, 'reddit-api');
+          return results;
+        }
+      } catch (error) {
+        // Log error and fall back to simple calculation
+        log(`Error using OpenAI for batch sentiment analysis: ${error}. Falling back to simple calculation.`, 'reddit-api');
+      }
+    }
+    
+    // Fallback to simple counting if OpenAI fails or isn't available
     let positive = 0, neutral = 0, negative = 0;
     
-    contentData.forEach(item => {
-      if (item.sentiment === 'positive') positive++;
-      else if (item.sentiment === 'negative') negative++;
-      else neutral++;
-    });
+    for (const item of contentData) {
+      // If the item already has a sentiment, use it
+      if (item.sentiment) {
+        if (item.sentiment === 'positive') positive++;
+        else if (item.sentiment === 'negative') negative++;
+        else neutral++;
+      } else {
+        // Otherwise try to calculate it
+        const sentiment = await this.determineSimpleSentiment(item.content || '');
+        if (sentiment === 'positive') positive++;
+        else if (sentiment === 'negative') negative++;
+        else neutral++;
+      }
+    }
     
     const total = contentData.length;
     return {
