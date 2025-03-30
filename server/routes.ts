@@ -105,10 +105,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Process the search and get digital footprint data
       const result = await storage.aggregateDigitalFootprint(searchQuery);
       
-      // Add platform errors to the response if any
-      if (Object.keys(platformErrors).length > 0) {
-        result.platformErrors = platformErrors;
-      }
+      // Always add platformErrors, even if empty, for consistency
+      console.log("Platform errors detected:", platformErrors);
+      result.platformErrors = Object.keys(platformErrors).length > 0 
+        ? platformErrors 
+        : {};
       
       // Determine username to save in history
       const usernameForHistory = searchQuery.username || 

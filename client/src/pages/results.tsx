@@ -78,6 +78,13 @@ export default function Results() {
     }
   }, [error, toast]);
 
+  // For debugging
+  useEffect(() => {
+    if (data) {
+      console.log("Platform Errors:", data.platformErrors);
+    }
+  }, [data]);
+
   return (
     <div className="max-w-4xl mx-auto fade-in">
       <div className="bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 py-6 px-4 rounded-lg mb-6">
@@ -89,6 +96,13 @@ export default function Results() {
           onPrint={handlePrint}
         />
       </div>
+      
+      {/* Debug information */}
+      {data && data.platformErrors && (
+        <div className="mb-4 p-3 bg-gray-100 border border-gray-300 rounded text-xs">
+          <p>Debug - Platform Errors: {JSON.stringify(data.platformErrors)}</p>
+        </div>
+      )}
 
       {error ? (
         <Card>
