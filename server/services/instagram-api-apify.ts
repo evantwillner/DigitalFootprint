@@ -24,6 +24,9 @@ export class InstagramApiApifyService {
   private apifyClient: ApifyClient | null = null;
   private readonly APIFY_INSTAGRAM_SCRAPER_ACTOR = 'apify/instagram-scraper';
   
+  // Session persistence for Instagram scraping
+  private successfulSessions: Map<string, any> = new Map();
+  
   // API status cache to avoid frequent checks
   private apiStatusCache: { status: { configured: boolean; message: string; operational?: boolean }, timestamp: number } | null = null;
   private readonly API_STATUS_CACHE_TTL = 60 * 1000; // 1 minute cache for API status
@@ -185,13 +188,29 @@ export class InstagramApiApifyService {
     }
     
     try {
-      // Run the Instagram scraper actor with the profile URL
+      // Run the Instagram scraper actor with the profile URL and enhanced configuration
       const run = await this.apifyClient.actor(this.APIFY_INSTAGRAM_SCRAPER_ACTOR).call({
         directUrls: [`https://www.instagram.com/${username}/`],
         resultsType: 'details',
         proxy: {
           useApifyProxy: true,
+          apifyProxyGroups: ['RESIDENTIAL'], // Use residential proxy for better success rate
         },
+        scrapePostsUntilDate: new Date(Date.now() - (30 * 24 * 60 * 60 * 1000)).toISOString(), // Last 30 days only
+        expandOwners: true,
+        includeTaggedPosts: false, // Less aggressive scraping
+        additionalData: false, // Minimize data collected
+        mouseMovements: true, // Simulate human behavior
+        login: false, // anonymous access
+        addUserInfo: true,
+        retry: 3, // Retry up to 3 times
+        pageTimeout: 60000, // Longer timeout
+        maxRequestRetries: 8, // More retries for requests
+        maxConcurrency: 1, // Slower scraping
+        randomWaitBetweenRequests: {
+          min: 500,
+          max: 3000
+        }, // Random delays between requests
       });
       
       // Get the dataset items from the run
@@ -212,8 +231,18 @@ export class InstagramApiApifyService {
       if (profileData.error && profileData.errorDescription) {
         const errorDesc = String(profileData.errorDescription);
         if (profileData.error === "no_items" && errorDesc.indexOf("Empty or private") >= 0) {
-          console.log(`[instagram-api] Detected private account or blocking for ${username}`);
-          throw new Error(`PRIVACY_ERROR: Instagram user ${username} has a private account or is blocking data access.`);
+          // Check if we have request error messages that indicate blocking
+          const isBlocked = profileData.requestErrorMessages && 
+                           Array.isArray(profileData.requestErrorMessages) && 
+                           profileData.requestErrorMessages.some((msg: string) => msg.includes("blocked"));
+          
+          console.log(`[instagram-api] Detected ${isBlocked ? 'blocking' : 'private account'} for ${username}`);
+          
+          if (isBlocked) {
+            throw new Error(`ACCESS_BLOCKED: Instagram is preventing automated access to this profile. This may be temporary.`);
+          } else {
+            throw new Error(`PRIVACY_ERROR: Instagram user ${username} has a private account.`);
+          }
         } else {
           console.log(`[instagram-api] API error for ${username}: ${errorDesc}`);
           throw new Error(`API_ERROR: ${errorDesc}`);
