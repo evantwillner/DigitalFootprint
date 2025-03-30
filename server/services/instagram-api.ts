@@ -742,7 +742,9 @@ export class InstagramApiService {
     try {
       // Extract hashtags from all captions
       const allCaptions = media?.data?.map((item: any) => item.caption || '').filter(Boolean) || [];
-      const hashtags = this.extractHashtags(allCaptions.join(' '));
+      const hashtagObjects = this.extractHashtags(allCaptions.join(' '));
+      // Convert hashtag objects to strings for the schema
+      const hashtags = hashtagObjects.map(h => h.tag);
       
       // Count media types
       const mediaItems = media?.data || [];
@@ -789,24 +791,20 @@ export class InstagramApiService {
           postsPerDay: 0, // Would need to calculate from media timestamps
           mostActiveTime: "Unknown", // Would need to analyze posting patterns
           lastActive: mediaItems.length > 0 ? mediaItems[0].timestamp : new Date().toISOString(),
-          topHashtags: hashtags.slice(0, 5).map(h => ({ tag: h.tag, count: h.count }))
+          topHashtags: hashtags.slice(0, 5) // Now it's just strings
         },
         contentData: mediaItems.slice(0, 10).map((item: any) => ({
-          id: item.id,
-          type: item.media_type.toLowerCase(),
-          text: item.caption || '',
-          url: item.permalink,
-          imageUrl: item.media_type === 'VIDEO' ? item.thumbnail_url : item.media_url,
+          type: "post", // Map all Instagram content to "post" type since we don't have comments, likes, shares
+          content: item.caption || '',
           timestamp: item.timestamp,
-          stats: {
+          url: item.permalink,
+          engagement: {
             likes: 0, // Not available in Basic Display API
             comments: 0, // Not available in Basic Display API
             shares: 0, // Not available for Instagram
-            views: 0, // Not available in Basic Display API
           },
-          hashtags: this.extractHashtags(item.caption || '').map(h => h.tag),
-          mentions: this.extractMentions(item.caption || ''),
-          sentiment: "neutral" // Would need sentiment analysis
+          sentiment: "neutral", // Would need sentiment analysis
+          topics: this.extractHashtags(item.caption || '').map(h => h.tag)
         })),
         privacyMetrics: {
           exposureScore: this.calculateExposureScore(
@@ -853,7 +851,7 @@ export class InstagramApiService {
             },
             locationCheckIns: this.extractLocations(mediaItems),
             engagementRate: 0, // Would need likes/comments data
-            hashtagAnalysis: hashtags.slice(0, 10).map(h => ({ 
+            hashtagAnalysis: hashtagObjects.slice(0, 10).map(h => ({ 
               tag: h.tag,
               count: h.count,
               category: this.categorizeHashtag(h.tag)
@@ -879,7 +877,7 @@ export class InstagramApiService {
     try {
       // Extract hashtags from all captions
       const allCaptions = data.media?.data?.map((item: any) => item.caption || '').filter(Boolean) || [];
-      const hashtags = this.extractHashtags(allCaptions.join(' '));
+      const hashtagObjects = this.extractHashtags(allCaptions.join(' '));
       
       // Count media types (limited information in Graph API)
       const mediaItems = data.media?.data || [];
@@ -924,24 +922,20 @@ export class InstagramApiService {
           postsPerDay: 0, // Would need to calculate from media timestamps
           mostActiveTime: "Unknown", // Would need to analyze posting patterns
           lastActive: mediaItems.length > 0 ? mediaItems[0].timestamp : new Date().toISOString(),
-          topHashtags: hashtags.slice(0, 5).map(h => ({ tag: h.tag, count: h.count }))
+          topHashtags: hashtagObjects.slice(0, 5).map(h => h.tag)
         },
         contentData: mediaItems.slice(0, 10).map((item: any) => ({
-          id: item.id,
-          type: item.media_url?.toLowerCase().endsWith('.mp4') ? 'video' : 'photo',
-          text: item.caption || '',
-          url: item.permalink,
-          imageUrl: item.media_url,
+          type: "post", // Map all Instagram content to "post" type since we don't have comments, likes, shares
+          content: item.caption || '',
           timestamp: item.timestamp,
-          stats: {
+          url: item.permalink,
+          engagement: {
             likes: Number(item.like_count || 0),
             comments: Number(item.comments_count || 0),
             shares: 0, // Not available for Instagram
-            views: 0, // Not available in Graph API
           },
-          hashtags: this.extractHashtags(item.caption || '').map(h => h.tag),
-          mentions: this.extractMentions(item.caption || ''),
-          sentiment: "neutral" // Would need sentiment analysis
+          sentiment: "neutral", // Would need sentiment analysis
+          topics: this.extractHashtags(item.caption || '').map(h => h.tag)
         })),
         privacyMetrics: {
           exposureScore: this.calculateExposureScore(
@@ -991,7 +985,7 @@ export class InstagramApiService {
               mediaItems,
               Number(data.followers_count || 0)
             ),
-            hashtagAnalysis: hashtags.slice(0, 10).map(h => ({ 
+            hashtagAnalysis: hashtagObjects.slice(0, 10).map(h => ({ 
               tag: h.tag,
               count: h.count,
               category: this.categorizeHashtag(h.tag)
@@ -1031,7 +1025,7 @@ export class InstagramApiService {
         edge.node.edge_media_to_caption?.edges?.[0]?.node.text || ''
       ).filter(Boolean);
       
-      const hashtags = this.extractHashtags(allCaptions.join(' '));
+      const hashtagObjects = this.extractHashtags(allCaptions.join(' '));
       
       // Count media types
       let photoCount = 0;
@@ -1076,29 +1070,23 @@ export class InstagramApiService {
           lastActive: mediaEdges.length > 0 ? 
             new Date(mediaEdges[0].node.taken_at_timestamp * 1000).toISOString() : 
             new Date().toISOString(),
-          topHashtags: hashtags.slice(0, 5).map(h => ({ tag: h.tag, count: h.count }))
+          topHashtags: hashtagObjects.slice(0, 5).map(h => h.tag)
         },
         contentData: mediaEdges.slice(0, 10).map(edge => {
           const node = edge.node;
           const caption = node.edge_media_to_caption?.edges?.[0]?.node.text || '';
           return {
-            id: node.id,
-            type: node.is_video ? 
-                  (node.product_type === 'reels' ? 'reel' : 'video') : 
-                  'photo',
-            text: caption,
-            url: `https://www.instagram.com/p/${node.shortcode}/`,
-            imageUrl: node.display_url,
+            type: "post", // Map all Instagram content to "post" type since we don't have comments, likes, shares
+            content: caption,
             timestamp: new Date(node.taken_at_timestamp * 1000).toISOString(),
-            stats: {
+            url: `https://www.instagram.com/p/${node.shortcode}/`,
+            engagement: {
               likes: Number(node.edge_media_preview_like?.count || 0),
               comments: Number(node.edge_media_to_comment?.count || 0),
               shares: 0, // Not available
-              views: node.is_video ? Number(node.video_view_count || 0) : 0,
             },
-            hashtags: this.extractHashtags(caption).map(h => h.tag),
-            mentions: this.extractMentions(caption),
-            sentiment: "neutral" // Would need sentiment analysis
+            sentiment: "neutral", // Would need sentiment analysis
+            topics: this.extractHashtags(caption).map(h => h.tag)
           };
         }),
         privacyMetrics: {
@@ -1150,7 +1138,7 @@ export class InstagramApiService {
               mediaEdges,
               Number(user.edge_followed_by?.count || 0)
             ),
-            hashtagAnalysis: hashtags.slice(0, 10).map(h => ({ 
+            hashtagAnalysis: hashtagObjects.slice(0, 10).map(h => ({ 
               tag: h.tag,
               count: h.count,
               category: this.categorizeHashtag(h.tag)
@@ -1204,8 +1192,8 @@ export class InstagramApiService {
     const mentionRegex = /@(\w+)(?![.\w])/g;
     const matches = text.match(mentionRegex) || [];
     
-    // Get unique mentions without the @ symbol
-    return [...new Set(matches)]
+    // Get unique mentions without the @ symbol using Array.from for better compatibility
+    return Array.from(new Set(matches))
       .map(match => match.substring(1));
   }
   
@@ -1349,8 +1337,8 @@ export class InstagramApiService {
    * @param mediaItems Media items
    * @returns Array of potential concerns
    */
-  private generatePrivacyConcerns(profile: any, mediaItems: any[]): Array<{issue: string, risk: string}> {
-    const concerns: Array<{issue: string, risk: string}> = [];
+  private generatePrivacyConcerns(profile: any, mediaItems: any[]): Array<{issue: string, risk: "low" | "medium" | "high"}> {
+    const concerns: Array<{issue: string, risk: "low" | "medium" | "high"}> = [];
     
     // Check follower count
     const followerCount = Number(profile.followers_count || 
@@ -1485,9 +1473,9 @@ export class InstagramApiService {
       }
     }
     
-    const hashtags = this.extractHashtags(allCaptions.join(' '));
+    const hashtagObjects = this.extractHashtags(allCaptions.join(' '));
     
-    if (!hashtags.length) {
+    if (!hashtagObjects.length) {
       return [{ topic: "Personal", percentage: 1.0 }];
     }
     
@@ -1513,7 +1501,7 @@ export class InstagramApiService {
     const artKeywords = ['art', 'artist', 'creative', 'design', 'photographer', 'photo', 'crafts'];
     const musicKeywords = ['music', 'musician', 'band', 'concert', 'song', 'singer', 'dj'];
     
-    for (const { tag } of hashtags) {
+    for (const { tag } of hashtagObjects) {
       const lowerTag = tag.toLowerCase();
       
       if (travelKeywords.some(keyword => lowerTag.includes(keyword))) {
@@ -1554,7 +1542,7 @@ export class InstagramApiService {
    * @param mediaItems Media items to analyze
    * @returns Array of activity timeline points
    */
-  private generateActivityTimeline(mediaItems: any[]): Array<{date: string, count: number}> {
+  private generateActivityTimeline(mediaItems: any[]): Array<{period: string, count: number}> {
     if (!mediaItems?.length) {
       return [];
     }
@@ -1581,8 +1569,8 @@ export class InstagramApiService {
     
     // Convert to array and sort by date
     return Array.from(monthCounts.entries())
-      .map(([date, count]) => ({ date, count }))
-      .sort((a, b) => a.date.localeCompare(b.date));
+      .map(([date, count]) => ({ period: date, count }))
+      .sort((a, b) => a.period.localeCompare(b.period));
   }
   
   /**
