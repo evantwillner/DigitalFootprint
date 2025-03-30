@@ -78,7 +78,8 @@ class PlatformApiService {
       return result;
     } catch (error: any) {
       log(`Error fetching data for ${normalizedUsername} from ${platform}: ${error.message}`, 'platform-api');
-      return null;
+      // Rethrow the error to ensure it propagates to storage.ts
+      throw error;
     }
   }
   
@@ -235,7 +236,18 @@ class PlatformApiService {
       }
     } catch (error: any) {
       log(`Error fetching Twitter data: ${error.message}`, 'platform-api');
-      return null;
+      // Rethrow the error to ensure it propagates to storage.ts
+      if (error.message.includes('private account') || error.message.includes('blocking data')) {
+        throw new Error(`PRIVACY_ERROR: Twitter user ${username} has a private account or is blocking data access.`);
+      } else if (error.message.includes('not found') || error.message.includes('does not exist')) {
+        throw new Error(`NOT_FOUND: Username ${username} not found on Twitter.`);
+      } else if (error.message.includes('rate limit') || error.message.includes('too many requests')) {
+        throw new Error(`RATE_LIMITED: Twitter API rate limit exceeded. Please try again later.`);
+      } else if (error.message.includes('authentication') || error.message.includes('credentials')) {
+        throw new Error(`AUTH_ERROR: Twitter API authentication failed. Please update your API credentials.`);
+      } else {
+        throw new Error(`API_ERROR: Error accessing Twitter data: ${error.message}`);
+      }
     }
   }
   
@@ -309,7 +321,18 @@ class PlatformApiService {
       }
     } catch (error: any) {
       log(`Error fetching Facebook data: ${error.message}`, 'platform-api');
-      return null;
+      // Rethrow the error to ensure it propagates to storage.ts
+      if (error.message.includes('private account') || error.message.includes('blocking data')) {
+        throw new Error(`PRIVACY_ERROR: Facebook user ${username} has a private account or is blocking data access.`);
+      } else if (error.message.includes('not found') || error.message.includes('does not exist')) {
+        throw new Error(`NOT_FOUND: Username ${username} not found on Facebook.`);
+      } else if (error.message.includes('rate limit') || error.message.includes('too many requests')) {
+        throw new Error(`RATE_LIMITED: Facebook API rate limit exceeded. Please try again later.`);
+      } else if (error.message.includes('authentication') || error.message.includes('credentials')) {
+        throw new Error(`AUTH_ERROR: Facebook API authentication failed. Please update your API credentials.`);
+      } else {
+        throw new Error(`API_ERROR: Error accessing Facebook data: ${error.message}`);
+      }
     }
   }
   

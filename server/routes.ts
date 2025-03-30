@@ -163,15 +163,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("Platform errors from result:", result.platformErrors);
       
       // Create a merged platform errors object
+      // Ensure both objects are initialized before spreading
+      const resultPlatformErrors = result.platformErrors || {};
+      
+      // Log platform errors before merging
+      console.log("Platform errors from API route:", platformErrors);
+      console.log("Platform errors from aggregate function:", resultPlatformErrors);
+      
       const mergedPlatformErrors = {
-        ...(result.platformErrors || {}),
+        ...resultPlatformErrors,
         ...platformErrors
       };
       
+      // Debug what we're actually sending
+      console.log("Merged platform errors to return:", mergedPlatformErrors);
+      
       // Update the result with the merged errors
-      result.platformErrors = Object.keys(mergedPlatformErrors).length > 0 
-        ? mergedPlatformErrors 
-        : {};
+      // Always include platform errors in the result, even if empty object
+      result.platformErrors = mergedPlatformErrors;
       
       // Determine username to save in history
       const usernameForHistory = searchQuery.username || 
@@ -365,7 +374,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const status = {
         twitter: {
           configured: twitterStatus.configured,
-          operational: twitterStatus.operational,
+          operational: twitterStatus.operational !== undefined ? twitterStatus.operational : false,
           message: twitterStatus.message
         },
         reddit: redditApi.getApiStatus(),
@@ -374,11 +383,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         facebook: (await platformStatus).facebook,
         instagram_oauth: {
           configured: instagramOAuth.isConfigured(),
-          message: instagramOAuth.isConfigured() 
-            ? (instagramOAuth.hasValidToken() 
+          message: (() => {
+            const isConfigured = instagramOAuth.isConfigured();
+            if (!isConfigured) return "Instagram OAuth not configured";
+            return instagramOAuth.hasValidToken() 
               ? "Instagram OAuth configured with valid token" 
-              : "Instagram OAuth configured but needs authorization")
-            : "Instagram OAuth not configured"
+              : "Instagram OAuth configured but needs authorization";
+          })()
         },
         system: {
           cache: {
@@ -663,11 +674,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Use dynamic import to avoid circular dependencies
       const { instagramOAuth } = await import('./services/instagram-oauth');
       
+      const isConfigured = instagramOAuth.isConfigured();
+      const hasValidToken = instagramOAuth.hasValidToken();
+      
       return res.json({
-        configured: instagramOAuth.isConfigured(),
-        hasValidToken: instagramOAuth.hasValidToken(),
-        needsAuthorization: instagramOAuth.isConfigured() && !instagramOAuth.hasValidToken(),
-        authorizeUrl: instagramOAuth.isConfigured() ? instagramOAuth.getAuthorizationUrl() : null
+        configured: isConfigured,
+        hasValidToken: hasValidToken, 
+        needsAuthorization: isConfigured && !hasValidToken,
+        authorizeUrl: isConfigured ? instagramOAuth.getAuthorizationUrl() : null
       });
     } catch (error: any) {
       console.error("Instagram status error:", error);
@@ -694,12 +708,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Return the URL rather than redirecting for testing purposes
       const authUrl = instagramOAuth.getAuthorizationUrl();
+      const isConfigured = instagramOAuth.isConfigured();
+      const hasValidToken = instagramOAuth.hasValidToken();
+      
       return res.json({
         success: true,
         message: "Instagram authentication URL generated",
         authUrl: authUrl,
-        isConfigured: instagramOAuth.isConfigured(),
-        hasValidToken: instagramOAuth.hasValidToken()
+        isConfigured: isConfigured,
+        hasValidToken: hasValidToken
       });
     } catch (error: any) {
       console.error("Error generating Instagram auth URL:", error);

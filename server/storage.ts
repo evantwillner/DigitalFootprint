@@ -349,6 +349,7 @@ export class MemStorage implements IStorage {
       : searchQuery.platforms;
     
     // Determine which username to use for each platform and track any errors
+    // Initialize platformErrors as an empty object, not undefined
     const platformErrors: Record<string, string> = {};
     
     // Use Promise.allSettled to handle both successful and failed promises
@@ -384,6 +385,9 @@ export class MemStorage implements IStorage {
                   } else {
                     platformErrors[platform] = `Error accessing ${platform} data: ${error.message}`;
                   }
+                  
+                  // Log the accumulated errors after each addition
+                  console.log(`Current platform errors: ${JSON.stringify(platformErrors)}`);
                 }
                 
                 // Return null for this platform since we encountered an error
@@ -415,6 +419,9 @@ export class MemStorage implements IStorage {
                 } else {
                   platformErrors[platform] = `Error accessing ${platform} data: ${error.message}`;
                 }
+                
+                // Log the accumulated errors after each addition
+                console.log(`Current platform errors: ${JSON.stringify(platformErrors)}`);
               }
               
               // Return null for this platform since we encountered an error
