@@ -9,6 +9,7 @@ import { Platform, PlatformData } from '@shared/schema';
 import { log } from '../vite';
 import { instagramApi } from './instagram-api';
 import { twitterApi } from './twitter-api';
+import { facebookApi } from './facebook-api';
 import { cacheService } from './cache-service';
 import { rateLimiters } from './rate-limiter';
 
@@ -54,6 +55,8 @@ class PlatformApiService {
         result = await this.fetchInstagramData(normalizedUsername);
       } else if (platform === 'twitter') {
         result = await this.fetchTwitterData(normalizedUsername);
+      } else if (platform === 'facebook') {
+        result = await this.fetchFacebookData(normalizedUsername);
       } else {
         log(`Platform ${platform} not implemented yet`, 'platform-api');
         return null;
@@ -150,16 +153,61 @@ class PlatformApiService {
   }
   
   /**
+   * Fetch Facebook data
+   * @param username Facebook username
+   * @returns Platform data or null
+   */
+  private async fetchFacebookData(username: string): Promise<PlatformData | null> {
+    try {
+      const cacheKey = `facebook:${username}`;
+      log(`Fetching Facebook data for ${username}`, 'platform-api');
+      
+      // Check cache first
+      const cachedData = cacheService.platformData.get(cacheKey);
+      if (cachedData) {
+        log(`Using cached Facebook data for ${username}`, 'platform-api');
+        return cachedData;
+      }
+      
+      // Check API status before fetching data
+      const apiStatus = await facebookApi.getApiStatus();
+      if (!apiStatus.configured || apiStatus.operational === false) {
+        log(`Facebook API not operational: ${apiStatus.message}`, 'platform-api');
+        return null;
+      }
+      
+      // Not in cache, fetch from API
+      const result = await facebookApi.fetchUserData(username);
+      
+      if (result) {
+        // Cache for 1 hour (or longer for popular accounts)
+        let cacheTtl = this.CACHE_TTL.DEFAULT;
+        if (result.profileData?.followerCount && result.profileData.followerCount > 10000) {
+          cacheTtl = this.CACHE_TTL.POPULAR;
+        }
+        cacheService.platformData.set(cacheKey, result, cacheTtl);
+      }
+      
+      return result;
+    } catch (error: any) {
+      log(`Error fetching Facebook data: ${error.message}`, 'platform-api');
+      return null;
+    }
+  }
+  
+  /**
    * Check platform API status
    * @returns Status of all platform APIs
    */
   public async getPlatformStatus(): Promise<Record<string, { available: boolean; operational?: boolean; configured?: boolean; message: string }>> {
     const twitterStatus = await twitterApi.getApiStatus();
     const instagramStatus = await instagramApi.getApiStatus();
+    const facebookStatus = await facebookApi.getApiStatus();
     
     // Log the returned API statuses
     console.log("Twitter API status returned by TwitterApiService:", twitterStatus);
     console.log("Instagram API status returned by InstagramApiService:", instagramStatus);
+    console.log("Facebook API status returned by FacebookApiService:", facebookStatus);
     
     return {
       instagram: {
@@ -172,6 +220,11 @@ class PlatformApiService {
         available: twitterStatus.configured,
         operational: twitterStatus.operational,
         message: twitterStatus.message
+      },
+      facebook: {
+        available: facebookStatus.configured,
+        operational: facebookStatus.operational,
+        message: facebookStatus.message
       }
       // Add other platforms as they are implemented
     };

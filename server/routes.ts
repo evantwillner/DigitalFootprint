@@ -333,10 +333,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         reddit: redditApi.getApiStatus(),
         instagram: (await platformStatus).instagram,
         // Add other platforms as they're implemented
-        facebook: {
-          configured: false,
-          message: "Facebook API integration is coming soon"
-        },
+        facebook: (await platformStatus).facebook,
         instagram_oauth: {
           configured: instagramOAuth.isConfigured(),
           message: instagramOAuth.isConfigured() 
@@ -757,6 +754,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Check Facebook API status without authentication
+  apiRouter.get("/facebook-api-status", async (_req: Request, res: Response) => {
+    try {
+      // Lazy-load the API service to avoid circular dependencies
+      const { facebookApi } = await import('./services/facebook-api');
+      
+      const status = await facebookApi.getApiStatus();
+      
+      return res.json({
+        status,
+        configured: status.configured,
+        operational: status.operational,
+        message: status.message
+      });
+    } catch (err) {
+      console.error("Error checking Facebook API status:", err);
+      return res.status(500).json({ message: "Error checking Facebook API status" });
+    }
+  });
+  
   // Twitter API test endpoint - for debugging purposes
   apiRouter.get("/test/twitter/:username", async (req: Request, res: Response) => {
     try {
@@ -832,6 +849,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } catch (error: any) {
       console.error(`Error testing Twitter API: ${error.message}`);
+      res.status(500).json({
+        success: false,
+        message: `API error: ${error.message}`,
+        error: error.message,
+        dataAvailable: false
+      });
+    }
+  });
+
+  // Facebook API test endpoint - for debugging purposes
+  apiRouter.get("/test/facebook/:username", async (req: Request, res: Response) => {
+    try {
+      const { username } = req.params;
+      console.log(`Testing Facebook API for username: ${username}`);
+      
+      // Use dynamic import to avoid circular dependencies
+      const { facebookApi } = await import('./services/facebook-api');
+      
+      // Check the API status
+      const apiStatus = await facebookApi.getApiStatus();
+      
+      if (!apiStatus.configured || apiStatus.operational === false) {
+        // Get a more specific error message based on the API status
+        let errorMessage = "Facebook API is not configured";
+        
+        if (apiStatus.configured && apiStatus.operational === false) {
+          if (apiStatus.message.includes('rate limited')) {
+            errorMessage = "Facebook API is rate limited. Please try again later.";
+          } else if (apiStatus.message.includes('service is currently unavailable')) {
+            errorMessage = "Facebook API service is currently unavailable. Please try again later.";
+          } else {
+            errorMessage = "Facebook API credentials are invalid or expired";
+          }
+        }
+        
+        return res.status(400).json({
+          success: false,
+          message: errorMessage,
+          apiStatus,
+          username,
+          dataAvailable: false
+        });
+      }
+      
+      // Try to fetch data from Facebook
+      const result = await facebookApi.fetchUserData(username);
+      
+      if (result) {
+        // Only return basic profile info to avoid exposing sensitive data
+        const profileData = result.profileData || {};
+        const activityData = result.activityData || {};
+        
+        // Format bio with length check
+        let bioText = "No bio available";
+        if (profileData.bio) {
+          bioText = profileData.bio.substring(0, 50);
+          if (profileData.bio.length > 50) {
+            bioText += '...';
+          }
+        }
+        
+        const testResult = {
+          success: true,
+          message: "Successfully retrieved Facebook data",
+          apiStatus,
+          username: result.username,
+          displayName: profileData.displayName || "Unknown",
+          bio: bioText,
+          followerCount: profileData.followerCount || 0,
+          postCount: activityData.totalPosts || 0,
+          dataAvailable: true
+        };
+        res.json(testResult);
+      } else {
+        res.status(404).json({
+          success: false,
+          message: "No data found for this username",
+          apiStatus,
+          username,
+          dataAvailable: false
+        });
+      }
+    } catch (error: any) {
+      console.error(`Error testing Facebook API: ${error.message}`);
       res.status(500).json({
         success: false,
         message: `API error: ${error.message}`,

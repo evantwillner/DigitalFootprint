@@ -128,11 +128,11 @@ export class InstagramApiService {
     }
     
     // Check for access token from OAuth as fallback
-    const oauthToken = instagramOAuth.getAccessToken();
+    const oauthToken = await instagramOAuth.getAccessToken();
     if (oauthToken) {
       // Store the token in token manager for future use
       await tokenManager.setToken('instagram', {
-        accessToken: oauthToken,
+        accessToken: oauthToken!, // Non-null assertion as we've already checked it's not null
         // Instagram Basic Display tokens last 60 days
         expiresAt: Date.now() + (60 * 24 * 60 * 60 * 1000)
       });
@@ -177,9 +177,9 @@ export class InstagramApiService {
     
     // Get token information
     const token = await tokenManager.getToken('instagram');
-    const oauthToken = instagramOAuth.getAccessToken();
+    const oauthToken = await instagramOAuth.getAccessToken();
     const tokenType = token ? 'TokenManager' : 
-                    oauthToken ? 'OAuth' : 'API Key';
+                    (oauthToken !== null) ? 'OAuth' : 'API Key';
     
     // Get rate limiter stats
     const stats = rateLimiters.instagram.getStats();
@@ -196,7 +196,7 @@ export class InstagramApiService {
         // We'll make a light request to validate the token
         // Using either /me endpoint for OAuth tokens or a simple user search for API keys
         if (token || oauthToken) {
-          const accessToken = token?.accessToken || oauthToken;
+          const accessToken = token?.accessToken || oauthToken!;
           
           // Check if token is going to expire soon
           const expiresAt = token?.expiresAt;
@@ -393,7 +393,7 @@ export class InstagramApiService {
     }
     
     // 2. Try OAuth if available
-    const oauthAccessToken = instagramOAuth.getAccessToken();
+    const oauthAccessToken = await instagramOAuth.getAccessToken();
     if (oauthAccessToken) {
       try {
         log('Attempting fetch via OAuth Basic Display API', 'instagram-api');

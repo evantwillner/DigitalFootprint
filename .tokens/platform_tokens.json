@@ -1,7 +1,7 @@
 {
   "instagram": {
     "accessToken": "EAAkC9nZBcNI4BOZCnaHZCqZATLq4QcpIvcGJyXK2mDK5gX5nhsDe3VaRwc3ZAGJZCuRu0Oe9ZAKZAlLKFldtlsIgi08vZAWhnWCPuUeD8OSVRoYgLUTdEjSmXGxSoj9UK5JodNUnVGuTqJWyyHHdeiT848u6zUdfwFsdmQhvMukXEXWZCc9rAIWrnR4Hhm28C6acG5hPYq60nXoWcnjHALB95qPi6kkO4psWXBkZCjs9TOGdyvWPy6tWME9CoosuZA1o6U4ZD",
-    "expiresAt": 1748496180368
+    "expiresAt": 1748498309679
   },
   "twitter": {
     "accessToken": "AAAAAAAAAAAAAAAAAAAAACkT0QEAAAAAb34OvmVMCKx9KF0f3qQ85c%2FoCrg%3DOm16EkuSSuVdSAahU4yxiAdzvIItQrWRWQi2gxquXbRY7BvGBs",
@@ -10,6 +10,9 @@
       "apiSecret": "MD3ti0mY1gSTDYiiaEM9IIRMMoQRa43yJa2GZX0LisorLGQgsr"
     }
   },
-  "facebook": null,
+  "facebook": {
+    "accessToken": "EAAkC9nZBcNI4BO0L9Ko3ZAxaYlhun3i2ufG68BqEckrWZChLV3sQqXtIQBwJr3UfFdFXwcgu1H9f8hNeCt6S2oCUgUGqx8emt6ZCUO3PgLnjpeHJ7UsIlXopiJlysU1fHd34JM9X7WLfOX5B1ce6ZCeQmQUXl3glcWwxzZBIesxrfZC3bQCR4JCtNd3",
+    "additionalData": {}
+  },
   "reddit": null
 }
