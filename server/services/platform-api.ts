@@ -7,7 +7,7 @@
 
 import { Platform, PlatformData } from '@shared/schema';
 import { log } from '../vite';
-import { instagramApiApify } from './instagram-api-apify';
+import { instagramApi } from './instagram-api';
 import { twitterApi } from './twitter-api';
 import { facebookApi } from './facebook-api';
 import { cacheService } from './cache-service';
@@ -90,7 +90,7 @@ class PlatformApiService {
    */
   private async fetchInstagramData(username: string): Promise<PlatformData | null> {
     // Check API status before fetching data
-    const apiStatus = await instagramApiApify.getApiStatus();
+    const apiStatus = await instagramApi.getApiStatus();
     
     // Log the current Instagram API status
     console.log(`Instagram API status before fetching data for ${username}:`, apiStatus);
@@ -105,7 +105,7 @@ class PlatformApiService {
       const cacheKey = `instagram:${username}`;
       
       try {
-        const result = await instagramApiApify.fetchUserData(username);
+        const result = await instagramApi.fetchUserData(username);
         if (result) {
           // Cache for 1 hour (or longer for popular accounts)
           let cacheTtl = this.CACHE_TTL.DEFAULT;
@@ -342,12 +342,12 @@ class PlatformApiService {
    */
   public async getPlatformStatus(): Promise<Record<string, { available: boolean; operational?: boolean; configured?: boolean; message: string }>> {
     const twitterStatus = await twitterApi.getApiStatus();
-    const instagramStatus = await instagramApiApify.getApiStatus();
+    const instagramStatus = await instagramApi.getApiStatus();
     const facebookStatus = await facebookApi.getApiStatus();
     
     // Log the returned API statuses
     console.log("Twitter API status returned by TwitterApiService:", twitterStatus);
-    console.log("Instagram API status returned by InstagramApiApifyService:", instagramStatus);
+    console.log("Instagram API status returned by InstagramApiService:", instagramStatus);
     console.log("Facebook API status returned by FacebookApiService:", facebookStatus);
     
     return {

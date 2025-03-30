@@ -7,7 +7,7 @@
  * Usage: npx tsx server/test-instagram-api.ts <username>
  */
 
-import { instagramApiApify } from './services/instagram-api-apify';
+import { instagramApi } from './services/instagram-api';
 import { log } from './vite';
 
 async function main() {
@@ -24,7 +24,7 @@ async function main() {
   
   // First check API status
   console.log('\nChecking API status...');
-  const status = await instagramApiApify.getApiStatus();
+  const status = await instagramApi.getApiStatus();
   console.log(JSON.stringify(status, null, 2));
   
   if (!status.configured) {
@@ -47,7 +47,7 @@ async function main() {
     // Set logging to verbose for this test
     // Note: Vite log doesn't have a level property, we'll just use it as is
     
-    const data = await instagramApiApify.fetchUserData(username);
+    const data = await instagramApi.fetchUserData(username);
     console.timeEnd('API request time');
     
     if (!data) {

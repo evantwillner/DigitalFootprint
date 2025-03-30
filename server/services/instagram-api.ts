@@ -1,11 +1,11 @@
 /**
- * Instagram API Integration Service using Apify
+ * Instagram API Integration Service
  * 
- * This service uses the Apify platform to scrape Instagram data reliably:
+ * This service scrapes Instagram data reliably:
  * - Handles proper rate limiting and caching
  * - Advanced error handling with detailed diagnostics
- * - Uses the Apify platform instead of deprecated Instagram Basic Display API
- * - Maintains the same response format for compatibility
+ * - Enhanced session management for better success rates
+ * - Maintains a consistent response format
  */
 
 import { ApifyClient } from 'apify-client';
@@ -14,7 +14,7 @@ import { log } from '../vite';
 import { cacheService } from './cache-service';
 import { rateLimiters } from './rate-limiter';
 
-export class InstagramApiApifyService {
+export class InstagramApiService {
   private readonly CACHE_TTL = {
     DEFAULT: 3600000,    // 1 hour
     POPULAR: 7200000,    // 2 hours for popular accounts
@@ -188,8 +188,12 @@ export class InstagramApiApifyService {
     }
     
     try {
-      // Run the Instagram scraper actor with the profile URL and enhanced configuration
-      const run = await this.apifyClient.actor(this.APIFY_INSTAGRAM_SCRAPER_ACTOR).call({
+      // Check if we have a successful session stored for this domain
+      const sessionKey = 'instagram'; // We use a general key since sessions are domain-based
+      const savedSession = this.successfulSessions.get(sessionKey);
+      
+      // Prepare the configuration for the Instagram scraper
+      const actorConfig: any = {
         directUrls: [`https://www.instagram.com/${username}/`],
         resultsType: 'details',
         proxy: {
@@ -211,7 +215,17 @@ export class InstagramApiApifyService {
           min: 500,
           max: 3000
         }, // Random delays between requests
-      });
+      };
+      
+      // If we have a saved session, use it
+      if (savedSession) {
+        log(`Using saved session data for Instagram scraping`, 'instagram-api');
+        actorConfig.cookies = savedSession.cookies;
+        actorConfig.userAgent = savedSession.userAgent;
+      }
+      
+      // Run the Instagram scraper actor with the configuration
+      const run = await this.apifyClient.actor(this.APIFY_INSTAGRAM_SCRAPER_ACTOR).call(actorConfig);
       
       // Get the dataset items from the run
       const dataset = await this.apifyClient.dataset(run.defaultDatasetId).listItems();
@@ -246,6 +260,19 @@ export class InstagramApiApifyService {
         } else {
           console.log(`[instagram-api] API error for ${username}: ${errorDesc}`);
           throw new Error(`API_ERROR: ${errorDesc}`);
+        }
+      }
+      
+      // If the run was successful, store the session data for future use
+      if (profileData && !profileData.error) {
+        // Check if we have cookies and a user agent in the response
+        if (profileData.cookies && Array.isArray(profileData.cookies) && profileData.cookies.length > 0) {
+          const sessionKey = 'instagram';
+          this.successfulSessions.set(sessionKey, {
+            cookies: profileData.cookies,
+            userAgent: profileData.userAgent || 'Mozilla/5.0'
+          });
+          log(`Saved successful session data for Instagram`, 'instagram-api');
         }
       }
       
@@ -623,4 +650,4 @@ export class InstagramApiApifyService {
 }
 
 // Export a singleton instance
-export const instagramApiApify = new InstagramApiApifyService();
+export const instagramApi = new InstagramApiService();
