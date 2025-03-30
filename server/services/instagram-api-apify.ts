@@ -100,6 +100,7 @@ export class InstagramApiApifyService {
    * Fetch user data from Instagram using Apify with caching and rate limiting
    * @param username Instagram username to look up (with or without @)
    * @returns Platform data or null if not found
+   * @throws Error with privacy or authentication information
    */
   public async fetchUserData(username: string): Promise<PlatformData | null> {
     // Normalize username (remove @ if present)
@@ -159,6 +160,15 @@ export class InstagramApiApifyService {
         cacheService.platformData.set(cacheKey, null, this.CACHE_TTL.ERROR);
       }
       
+      // Important: Rethrow specific errors that should be handled by the caller
+      // This includes privacy errors, authentication errors, and rate limiting
+      if (error.message.includes('PRIVACY_ERROR') || 
+          error.message.includes('AUTH_ERROR') || 
+          error.message.includes('RATE_LIMITED') ||
+          error.message.includes('NOT_FOUND')) {
+        throw error;
+      }
+      
       return null;
     }
   }
@@ -194,6 +204,21 @@ export class InstagramApiApifyService {
       
       // Extract the profile data from the first item (should be only one)
       const profileData = dataset.items[0];
+      
+      // Log the raw Apify response for debugging
+      log(`Raw Apify data for ${username}: ${JSON.stringify(profileData, null, 2)}`, 'instagram-api');
+      
+      // Check if there's an error in the response
+      if (profileData.error && profileData.errorDescription) {
+        const errorDesc = String(profileData.errorDescription);
+        if (profileData.error === "no_items" && errorDesc.indexOf("Empty or private") >= 0) {
+          console.log(`[instagram-api] Detected private account or blocking for ${username}`);
+          throw new Error(`PRIVACY_ERROR: Instagram user ${username} has a private account or is blocking data access.`);
+        } else {
+          console.log(`[instagram-api] API error for ${username}: ${errorDesc}`);
+          throw new Error(`API_ERROR: ${errorDesc}`);
+        }
+      }
       
       // Transform the data to our standard format
       const result = this.transformApifyData(profileData, username);

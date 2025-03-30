@@ -121,6 +121,11 @@ class PlatformApiService {
           throw new Error(`Instagram API permission error: ${apiError.message.split(': ')[1]}`);
         }
         
+        if (apiError.message.startsWith('PRIVACY_ERROR:')) {
+          log(`Instagram privacy error for ${username}: ${apiError.message}`, 'platform-api');
+          throw new Error(`${apiError.message.split(': ')[1]}`);
+        }
+        
         if (apiError.message.startsWith('NOT_FOUND:')) {
           log(`Instagram resource not found for ${username}: ${apiError.message}`, 'platform-api');
           cacheService.platformData.set(cacheKey, null, this.CACHE_TTL.ERROR);
@@ -137,12 +142,29 @@ class PlatformApiService {
           throw new Error(`Instagram API authentication failed. Please update your API credentials.`);
         }
         
+        if (apiError.message.startsWith('API_ERROR:')) {
+          log(`Instagram API error for ${username}: ${apiError.message}`, 'platform-api');
+          throw new Error(`Instagram API error: ${apiError.message.split(': ')[1]}`);
+        }
+        
         // Re-throw the error for generic handling
         throw apiError;
       }
     } catch (error: any) {
       log(`Error in Instagram API call: ${error.message}`, 'platform-api');
-      return null;
+      
+      // Pass along the error with a standard format to ensure it gets handled properly
+      if (error.message.includes('private account') || error.message.includes('blocking data')) {
+        throw new Error(`PRIVACY_ERROR: Instagram user ${username} has a private account or is blocking data access.`);
+      } else if (error.message.includes('not found') || error.message.includes('does not exist')) {
+        throw new Error(`NOT_FOUND: Username ${username} not found on Instagram.`);
+      } else if (error.message.includes('rate limit') || error.message.includes('too many requests')) {
+        throw new Error(`RATE_LIMITED: Instagram API rate limit exceeded. Please try again later.`);
+      } else if (error.message.includes('authentication') || error.message.includes('credentials')) {
+        throw new Error(`AUTH_ERROR: Instagram API authentication failed. Please update your API credentials.`);
+      } else {
+        throw new Error(`API_ERROR: Error accessing Instagram data: ${error.message}`);
+      }
     }
   }
   

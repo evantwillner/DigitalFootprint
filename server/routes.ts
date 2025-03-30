@@ -158,10 +158,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Process the search and get digital footprint data
       const result = await storage.aggregateDigitalFootprint(searchQuery);
       
-      // Always add platformErrors, even if empty, for consistency
-      console.log("Platform errors detected:", platformErrors);
-      result.platformErrors = Object.keys(platformErrors).length > 0 
-        ? platformErrors 
+      // Merge the API status errors with any platform errors found during fetching
+      console.log("Platform errors from API status:", platformErrors);
+      console.log("Platform errors from result:", result.platformErrors);
+      
+      // Create a merged platform errors object
+      const mergedPlatformErrors = {
+        ...(result.platformErrors || {}),
+        ...platformErrors
+      };
+      
+      // Update the result with the merged errors
+      result.platformErrors = Object.keys(mergedPlatformErrors).length > 0 
+        ? mergedPlatformErrors 
         : {};
       
       // Determine username to save in history

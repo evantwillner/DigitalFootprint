@@ -232,8 +232,20 @@ export class MemStorage implements IStorage {
       }
       
       return result;
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Error fetching platform data for ${username} on ${platform}:`, error);
+      
+      // Important: Rethrow specific error types to be handled by the aggregateDigitalFootprint method
+      // This ensures privacy errors, rate limiting and other expected errors are properly communicated to the client
+      if (error.message && (
+        error.message.includes('PRIVACY_ERROR') || 
+        error.message.includes('AUTH_ERROR') || 
+        error.message.includes('RATE_LIMITED') ||
+        error.message.includes('NOT_FOUND')
+      )) {
+        throw error;
+      }
+      
       return null;
     }
   }
@@ -336,30 +348,93 @@ export class MemStorage implements IStorage {
       ? ["instagram", "facebook", "reddit", "twitter", "linkedin"] as Platform[]
       : searchQuery.platforms;
     
-    // Determine which username to use for each platform
+    // Determine which username to use for each platform and track any errors
+    const platformErrors: Record<string, string> = {};
+    
+    // Use Promise.allSettled to handle both successful and failed promises
     const platformDataPromises = platformsToFetch.map(platform => {
-      // Check if we have a platform-specific username
-      if (searchQuery.platformUsernames) {
-        const platformUsername = searchQuery.platformUsernames.find(
-          (pu: { platform: Platform, username: string }) => pu.platform === platform
-        );
-        if (platformUsername) {
-          // Use the platform-specific username if available
-          return this.fetchPlatformData(platformUsername.username, platform);
+      // Create a promise that includes the platform information
+      return new Promise<{platform: Platform, data: PlatformData | null}>((resolve) => {
+        let username = '';
+        
+        // Check if we have a platform-specific username
+        if (searchQuery.platformUsernames) {
+          const platformUsername = searchQuery.platformUsernames.find(
+            (pu: { platform: Platform, username: string }) => pu.platform === platform
+          );
+          if (platformUsername) {
+            username = platformUsername.username;
+            
+            // Use the platform-specific username if available
+            this.fetchPlatformData(username, platform)
+              .then(data => resolve({platform, data}))
+              .catch((error: any) => {
+                // Catch specific errors and add them to platformErrors
+                if (error.message) {
+                  console.log(`Adding ${platform} error for ${username}: ${error.message}`);
+                  
+                  if (error.message.includes('PRIVACY_ERROR')) {
+                    platformErrors[platform] = `The ${platform} user ${username} has a private account or is blocking data access.`;
+                  } else if (error.message.includes('NOT_FOUND')) {
+                    platformErrors[platform] = `Username ${username} not found on ${platform}.`;
+                  } else if (error.message.includes('RATE_LIMITED')) {
+                    platformErrors[platform] = `${platform} API rate limit exceeded. Please try again later.`;
+                  } else if (error.message.includes('AUTH_ERROR')) {
+                    platformErrors[platform] = `${platform} API authentication error.`;
+                  } else {
+                    platformErrors[platform] = `Error accessing ${platform} data: ${error.message}`;
+                  }
+                }
+                
+                // Return null for this platform since we encountered an error
+                resolve({platform, data: null});
+              });
+            return;
+          }
         }
-      }
-      
-      // Fall back to the global username
-      if (searchQuery.username) {
-        return this.fetchPlatformData(searchQuery.username, platform);
-      }
-      
-      // If no username is available for this platform, return null
-      return Promise.resolve(null);
+        
+        // Fall back to the global username
+        if (searchQuery.username) {
+          username = searchQuery.username;
+          
+          this.fetchPlatformData(username, platform)
+            .then(data => resolve({platform, data}))
+            .catch((error: any) => {
+              // Catch specific errors and add them to platformErrors
+              if (error.message) {
+                console.log(`Adding ${platform} error for ${username}: ${error.message}`);
+                
+                if (error.message.includes('PRIVACY_ERROR')) {
+                  platformErrors[platform] = `The ${platform} user ${username} has a private account or is blocking data access.`;
+                } else if (error.message.includes('NOT_FOUND')) {
+                  platformErrors[platform] = `Username ${username} not found on ${platform}.`;
+                } else if (error.message.includes('RATE_LIMITED')) {
+                  platformErrors[platform] = `${platform} API rate limit exceeded. Please try again later.`;
+                } else if (error.message.includes('AUTH_ERROR')) {
+                  platformErrors[platform] = `${platform} API authentication error.`;
+                } else {
+                  platformErrors[platform] = `Error accessing ${platform} data: ${error.message}`;
+                }
+              }
+              
+              // Return null for this platform since we encountered an error
+              resolve({platform, data: null});
+            });
+          return;
+        }
+        
+        // If no username is available for this platform, return null
+        resolve({platform, data: null});
+      });
     });
     
+    // Wait for all platform data fetches to complete (both successful and failed)
     const platformDataResults = await Promise.all(platformDataPromises);
-    const validPlatformData = platformDataResults.filter(result => result !== null) as PlatformData[];
+    
+    // Extract just the data from the results
+    const validPlatformData = platformDataResults
+      .map(result => result.data)
+      .filter(result => result !== null) as PlatformData[];
     
     // Calculate aggregated statistics
     let totalPosts = 0;
@@ -431,8 +506,7 @@ export class MemStorage implements IStorage {
       const { platformApi } = await import('./services/platform-api');
       const platformStatus = await platformApi.getPlatformStatus();
       
-      // Track platform errors
-      const platformErrors: Record<string, string> = {};
+      // Additional API-status related errors (we already have platform-specific errors from above)
       
       // Check Twitter API status specifically
       if (platformsToFetch.includes("twitter") && platformStatus.twitter) {
@@ -496,7 +570,7 @@ export class MemStorage implements IStorage {
         timestamp: new Date().toISOString(),
         platforms: platformsToFetch,
         platformData: validPlatformData,
-        platformErrors: Object.keys(platformErrors).length > 0 ? platformErrors : undefined,
+        platformErrors: Object.keys(platformErrors).length > 0 ? platformErrors : {},
         summary: {
           exposureScore: averageExposureScore,
           platformsFound: validPlatformData.length,
@@ -521,12 +595,13 @@ export class MemStorage implements IStorage {
     } catch (error) {
       console.error("Error checking platform status:", error);
       
-      // If error occurs when checking platform status, return response without platform errors
+      // If error occurs when checking platform status, still include our already collected platform errors
       const response: DigitalFootprintResponse = {
         username: responseUsername,
         timestamp: new Date().toISOString(),
         platforms: platformsToFetch,
         platformData: validPlatformData,
+        platformErrors: Object.keys(platformErrors).length > 0 ? platformErrors : {},
         summary: {
           exposureScore: averageExposureScore,
           platformsFound: validPlatformData.length,
