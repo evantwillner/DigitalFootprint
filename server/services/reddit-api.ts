@@ -446,7 +446,7 @@ export class RedditApiService {
    */
   private calculateSentimentBreakdown(contentData: any[]): { positive: number, neutral: number, negative: number } {
     if (!contentData || contentData.length === 0) {
-      return { positive: 33, neutral: 34, negative: 33 };
+      return { positive: 0.33, neutral: 0.34, negative: 0.33 };
     }
     
     let positive = 0, neutral = 0, negative = 0;
@@ -459,9 +459,9 @@ export class RedditApiService {
     
     const total = contentData.length;
     return {
-      positive: Math.round((positive / total) * 100),
-      neutral: Math.round((neutral / total) * 100),
-      negative: Math.round((negative / total) * 100)
+      positive: parseFloat((positive / total).toFixed(2)),
+      neutral: parseFloat((neutral / total).toFixed(2)),
+      negative: parseFloat((negative / total).toFixed(2))
     };
   }
   

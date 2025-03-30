@@ -218,9 +218,9 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
     
     if (hasValidValues) {
       sentimentData = [
-        { name: "Positive", value: Math.round(sentiment.positive * 100) },
-        { name: "Neutral", value: Math.round(sentiment.neutral * 100) },
-        { name: "Negative", value: Math.round(sentiment.negative * 100) },
+        { name: "Positive", value: sentiment.positive * 100 },
+        { name: "Neutral", value: sentiment.neutral * 100 },
+        { name: "Negative", value: sentiment.negative * 100 },
       ];
     }
   }

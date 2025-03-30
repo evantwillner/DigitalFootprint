@@ -35,15 +35,15 @@ export default function RedditContentAnalysis({ platformData, isLoading }: Reddi
   const sentimentData = [
     { 
       name: "Positive", 
-      value: platformData.analysisResults?.sentimentBreakdown?.positive || 30 
+      value: (platformData.analysisResults?.sentimentBreakdown?.positive || 0.3) * 100
     },
     { 
       name: "Neutral", 
-      value: platformData.analysisResults?.sentimentBreakdown?.neutral || 60 
+      value: (platformData.analysisResults?.sentimentBreakdown?.neutral || 0.6) * 100 
     },
     { 
       name: "Negative", 
-      value: platformData.analysisResults?.sentimentBreakdown?.negative || 10 
+      value: (platformData.analysisResults?.sentimentBreakdown?.negative || 0.1) * 100
     },
   ];
 
