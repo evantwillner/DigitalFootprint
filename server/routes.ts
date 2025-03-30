@@ -54,8 +54,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Parse and validate the search query using the enhanced schema with validation
       const searchQuery = searchQuerySchemaWithValidation.parse(req.body);
       
+      // Check platform API status first to identify issues before processing the search
+      // Import platform API service to check API status
+      const { platformApi } = await import('./services/platform-api');
+      const platformStatus = await platformApi.getPlatformStatus();
+      
+      // Identify platforms with operational issues
+      const platformErrors: Record<string, string> = {};
+      const platformsToSearch = searchQuery.platforms.includes("all") 
+        ? ["instagram", "twitter", "reddit", "facebook", "linkedin"] as Platform[]
+        : searchQuery.platforms;
+      
+      // Check each platform status
+      for (const platform of platformsToSearch) {
+        // Skip platforms that don't have a specific API integration yet
+        if (!platformStatus[platform]) continue;
+        
+        // For Twitter specifically, check operational status
+        if (platform === "twitter" && platformStatus.twitter) {
+          // Type safety handling for Twitter status
+          const twitterStatus = platformStatus.twitter as unknown as { 
+            configured: boolean; 
+            operational: boolean; 
+            message: string 
+          };
+          
+          if (twitterStatus.configured && !twitterStatus.operational) {
+            platformErrors.twitter = twitterStatus.message;
+          }
+        }
+        
+        // For other platforms, check their available status
+        else if (platformStatus[platform]) {
+          // Type safety handling for other platform status formats
+          const platformInfo = platformStatus[platform] as unknown as { 
+            available?: boolean; 
+            configured?: boolean;
+            operational?: boolean;
+            message: string 
+          };
+
+          if ((platformInfo.available === false) || 
+              (platformInfo.configured === false) || 
+              (platformInfo.operational === false)) {
+            platformErrors[platform] = platformInfo.message;
+          }
+        }
+      }
+      
       // Process the search and get digital footprint data
       const result = await storage.aggregateDigitalFootprint(searchQuery);
+      
+      // Add platform errors to the response if any
+      if (Object.keys(platformErrors).length > 0) {
+        result.platformErrors = platformErrors;
+      }
       
       // Determine username to save in history
       const usernameForHistory = searchQuery.username || 

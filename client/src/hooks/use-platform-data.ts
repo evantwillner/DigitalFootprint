@@ -13,6 +13,9 @@ const SAMPLE_DATA: DigitalFootprintResponse = {
   username: "johndoe",
   timestamp: new Date().toISOString(),
   platforms: ["instagram", "twitter", "facebook", "reddit", "linkedin"],
+  platformErrors: {
+    "twitter": "Twitter API rate limit exceeded. Some data may be incomplete."
+  },
   platformData: [
     {
       platformId: "instagram",

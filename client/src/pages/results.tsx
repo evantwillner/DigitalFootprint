@@ -19,6 +19,19 @@ export default function Results() {
   console.log("Results page - isLoading:", isLoading);
   console.log("Results page - error:", error);
   
+  // Show platform errors as toasts if present
+  useEffect(() => {
+    if (data?.platformErrors && Object.keys(data.platformErrors).length > 0) {
+      Object.entries(data.platformErrors).forEach(([platform, errorMessage]) => {
+        toast({
+          title: `${platform.charAt(0).toUpperCase() + platform.slice(1)} API Issue`,
+          description: errorMessage,
+          variant: "destructive",
+        });
+      });
+    }
+  }, [data, toast]);
+  
   // Create a direct link to navigate to the timeline tab
   useEffect(() => {
     if (data && !isLoading) {
@@ -123,6 +136,22 @@ export default function Results() {
         </Card>
       ) : (
         <>
+          {data?.platformErrors && Object.keys(data.platformErrors).length > 0 && (
+            <div className="mb-6 p-4 border border-amber-200 rounded-lg bg-amber-50">
+              <h3 className="text-amber-800 font-medium mb-2">Platform API Limitations</h3>
+              <ul className="list-disc pl-5 space-y-1">
+                {Object.entries(data.platformErrors).map(([platform, error]) => (
+                  <li key={platform} className="text-amber-700">
+                    <span className="font-medium">{platform.charAt(0).toUpperCase() + platform.slice(1)}:</span> {error}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-amber-600 text-sm mt-2">
+                Some data may be incomplete or unavailable due to these limitations.
+              </p>
+            </div>
+          )}
+          
           <ResultsTabs data={data} isLoading={isLoading} />
           
           <div className="bg-gradient-to-r from-purple-100 to-blue-100 rounded-lg p-8 mb-8 shadow-sm">

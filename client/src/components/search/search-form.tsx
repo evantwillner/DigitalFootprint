@@ -60,6 +60,19 @@ export default function SearchForm() {
     }) => {
       const response = await apiRequest("POST", "/api/search", data);
       const result = await response.json();
+      
+      // Check for platform-specific errors in the response
+      if (result.platformErrors && Object.keys(result.platformErrors).length > 0) {
+        // Create a warning toast for each platform with errors
+        for (const [platform, error] of Object.entries(result.platformErrors)) {
+          toast({
+            title: `${platform.charAt(0).toUpperCase() + platform.slice(1)} API Issue`,
+            description: error as string,
+            variant: "destructive",
+          });
+        }
+      }
+      
       return result;
     },
     onSuccess: (data) => {
@@ -69,11 +82,22 @@ export default function SearchForm() {
       navigate("/results");
     },
     onError: (error) => {
-      toast({
-        title: "Search failed",
-        description: error.message || "There was an error processing your search. Please try again.",
-        variant: "destructive",
-      });
+      // Check if the error includes API operational status information
+      const errorMessage = error.message || "";
+      
+      if (errorMessage.includes("rate limited") || errorMessage.includes("operational")) {
+        toast({
+          title: "API Availability Issue",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Search failed",
+          description: errorMessage || "There was an error processing your search. Please try again.",
+          variant: "destructive",
+        });
+      }
     },
   });
 
