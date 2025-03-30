@@ -23,10 +23,12 @@ export default function Results() {
   useEffect(() => {
     if (data?.platformErrors && Object.keys(data.platformErrors).length > 0) {
       Object.entries(data.platformErrors).forEach(([platform, errorMessage]) => {
+        const isRateLimited = errorMessage.toLowerCase().includes('rate limit');
         toast({
-          title: `${platform.charAt(0).toUpperCase() + platform.slice(1)} API Issue`,
-          description: errorMessage,
-          variant: "destructive",
+          title: `${platform.charAt(0).toUpperCase() + platform.slice(1)} API ${isRateLimited ? 'Rate Limited' : 'Issue'}`,
+          description: errorMessage + (isRateLimited ? ' This is temporary and will resolve shortly.' : ''),
+          variant: isRateLimited ? "warning" : "destructive",
+          duration: isRateLimited ? 8000 : 5000, // Show rate limit messages longer
         });
       });
     }
@@ -174,15 +176,33 @@ export default function Results() {
                 <div>
                   <h3 className="text-amber-800 font-semibold mb-2 text-lg">Platform API Limitations Detected</h3>
                   <ul className="list-disc pl-5 space-y-2">
-                    {Object.entries(data.platformErrors).map(([platform, error]) => (
-                      <li key={platform} className="text-amber-700">
-                        <span className="font-medium">{platform.charAt(0).toUpperCase() + platform.slice(1)}:</span> {error}
-                      </li>
-                    ))}
+                    {Object.entries(data.platformErrors).map(([platform, errorMessage]) => {
+                      const isRateLimited = errorMessage.toLowerCase().includes('rate limit');
+                      return (
+                        <li key={platform} className={`${isRateLimited ? 'text-orange-700' : 'text-amber-700'}`}>
+                          <span className="font-medium">{platform.charAt(0).toUpperCase() + platform.slice(1)}:</span> {errorMessage}
+                          {isRateLimited && (
+                            <div className="mt-1 text-sm text-gray-600">
+                              <p>⚠️ This is a temporary condition. The service will be available again shortly.</p>
+                              <p className="mt-1">We've implemented caching and automatic retries to minimize these interruptions.</p>
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                   <p className="text-amber-600 mt-3 font-medium">
                     Some data may be incomplete or unavailable due to these limitations.
                   </p>
+                  {Object.values(data.platformErrors).some(err => err.toLowerCase().includes('rate limit')) && (
+                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                      <p className="text-blue-700 font-medium">About Rate Limiting</p>
+                      <p className="text-blue-600 text-sm mt-1">
+                        Rate limiting occurs when we've reached the maximum number of allowed API requests.
+                        This is a temporary condition and will resolve automatically after a short period.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
