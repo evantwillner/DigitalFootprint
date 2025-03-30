@@ -9,94 +9,174 @@
 
 import axios from 'axios';
 import { instagramOAuth } from './services/instagram-oauth';
-import { log } from './vite';
 
 async function testInstagramOAuth() {
-  log('---- Instagram OAuth Test ----', 'test');
-  
-  // Check if OAuth service is configured
-  const isConfigured = instagramOAuth.isConfigured();
-  log(`OAuth service configured: ${isConfigured}`, 'test');
-  
-  if (!isConfigured) {
-    log('Instagram OAuth is not configured. Please set the required environment variables:', 'test');
-    log('  - INSTAGRAM_CLIENT_ID', 'test');
-    log('  - INSTAGRAM_CLIENT_SECRET', 'test');
-    log('  - INSTAGRAM_ACCESS_TOKEN (optional - for testing without going through auth flow)', 'test');
-    return;
+  console.log('🔐 Instagram OAuth Configuration Test 🔐');
+  console.log('--------------------------------------');
+
+  // Check if credentials are properly configured
+  if (!instagramOAuth.isConfigured()) {
+    console.error('❌ Instagram OAuth is not configured.');
+    console.error('Please ensure the following environment variables are set:');
+    console.error('- INSTAGRAM_CLIENT_ID');
+    console.error('- INSTAGRAM_CLIENT_SECRET');
+    process.exit(1);
   }
+
+  console.log('✅ Instagram OAuth credentials are properly configured.');
   
-  // Check if we have a valid token
-  const hasToken = instagramOAuth.hasValidToken();
-  log(`Has valid token: ${hasToken}`, 'test');
+  // Check if an access token is available
+  const accessToken = instagramOAuth.getAccessToken();
   
-  if (!hasToken) {
-    // Generate an auth URL that the user can follow
-    const authUrl = instagramOAuth.getAuthorizationUrl();
-    log(`No valid token found. Please visit the following URL to authorize the app:`, 'test');
-    log(authUrl, 'test');
-    log(`After authorization, you'll be redirected to the callback URL.`, 'test');
-    log(`The code parameter in the URL can be used to get an access token.`, 'test');
-    return;
-  }
-  
-  // If we have a token, test it by making a request to the Instagram API
-  try {
-    log('Testing API access with the current token...', 'test');
+  if (!accessToken) {
+    console.log('\n⚠️ No access token is currently available.');
     
-    const token = instagramOAuth.getAccessToken();
+    // Generate the authorization URL
+    const authUrl = instagramOAuth.getAuthorizationUrl();
+    console.log('\nTo complete the OAuth flow, you need to:');
+    console.log('1. Visit the following URL in your browser:');
+    console.log(`   ${authUrl}`);
+    console.log('2. Authorize the application');
+    console.log('3. You will be redirected to your callback URL with a code');
+    console.log('\nOnce you complete the authorization flow, the access token will');
+    console.log('be automatically saved and available for API requests.');
+    
+    process.exit(0);
+  }
+  
+  console.log('✅ An access token is available.');
+  
+  // Test the access token by making a request to Instagram API
+  console.log('\n🔍 Testing access token...');
+  
+  try {
     const response = await axios.get('https://graph.instagram.com/me', {
       params: {
-        access_token: token,
-        fields: 'id,username,account_type,media_count'
+        fields: 'id,username,account_type',
+        access_token: accessToken
       }
     });
     
-    log('✅ Success! Token is working correctly.', 'test');
-    log(`User: ${response.data.username} (${response.data.account_type})`, 'test');
-    log(`Media count: ${response.data.media_count}`, 'test');
+    console.log('✅ Access token is valid!');
+    console.log('\nConnected Instagram Account:');
+    console.log(`- Username: ${response.data.username}`);
+    console.log(`- Account ID: ${response.data.id}`);
+    console.log(`- Account Type: ${response.data.account_type || 'Unknown'}`);
     
-    // Test fetching media
+    // Fetch media to test permissions
+    console.log('\n🔍 Testing media access...');
+    
     try {
-      const mediaResponse = await axios.get(`https://graph.instagram.com/me/media`, {
+      const mediaResponse = await axios.get('https://graph.instagram.com/me/media', {
         params: {
-          access_token: token,
-          fields: 'id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,username'
+          fields: 'id,caption,media_type,media_url,permalink,timestamp',
+          access_token: accessToken
         }
       });
       
       const mediaCount = mediaResponse.data.data?.length || 0;
-      log(`✅ Successfully fetched ${mediaCount} media items`, 'test');
+      console.log(`✅ Successfully retrieved ${mediaCount} media items.`);
       
       if (mediaCount > 0) {
-        log('First media item:', 'test');
-        log(JSON.stringify(mediaResponse.data.data[0], null, 2), 'test');
+        const recentMedia = mediaResponse.data.data[0];
+        console.log('\nMost recent media:');
+        console.log(`- Type: ${recentMedia.media_type}`);
+        console.log(`- Posted: ${new Date(recentMedia.timestamp).toLocaleString()}`);
+        console.log(`- Caption: ${recentMedia.caption ? recentMedia.caption.substring(0, 50) + (recentMedia.caption.length > 50 ? '...' : '') : 'No caption'}`);
+        console.log(`- URL: ${recentMedia.permalink}`);
+      } else {
+        console.log('No media found for this account.');
       }
     } catch (mediaError: any) {
-      log('❌ Error fetching media:', 'test');
-      log(mediaError.message, 'test');
+      console.error('❌ Error accessing media:');
+      console.error(`${mediaError.message}`);
+      
       if (mediaError.response?.data) {
-        log(JSON.stringify(mediaError.response.data, null, 2), 'test');
+        console.error('API Error Details:');
+        console.error(mediaError.response.data);
+      }
+      
+      console.log('\nThis could indicate:');
+      console.log('1. Your access token does not have user_media permission');
+      console.log('2. The Instagram account has no media');
+      console.log('3. Media access is restricted for this account');
+    }
+    
+    // Check token details and expiration
+    console.log('\n🔍 Checking token details...');
+    
+    try {
+      const debugResponse = await axios.get('https://graph.facebook.com/debug_token', {
+        params: {
+          input_token: accessToken,
+          access_token: accessToken
+        }
+      });
+      
+      const tokenData = debugResponse.data.data;
+      
+      if (tokenData) {
+        console.log('Token information:');
+        console.log(`- Valid: ${tokenData.is_valid ? 'Yes' : 'No'}`);
+        
+        if (tokenData.expires_at) {
+          const expiresAt = new Date(tokenData.expires_at * 1000);
+          const now = new Date();
+          const daysRemaining = Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          
+          console.log(`- Expires: ${expiresAt.toLocaleString()}`);
+          console.log(`- Days remaining: ${daysRemaining}`);
+          
+          if (daysRemaining <= 7) {
+            console.log('⚠️ Your token will expire soon! Consider refreshing it.');
+          }
+        } else if (tokenData.expires_at === 0) {
+          console.log('- Expires: Never (Long-lived token)');
+        }
+        
+        if (tokenData.scopes) {
+          console.log('- Permissions:');
+          tokenData.scopes.forEach((scope: string) => {
+            console.log(`  • ${scope}`);
+          });
+        }
+      }
+    } catch (debugError: any) {
+      console.error('❌ Could not debug token:');
+      console.error(`${debugError.message}`);
+      
+      if (debugError.response?.data) {
+        console.error('API Error Details:');
+        console.error(debugError.response.data);
       }
     }
     
+    console.log('\n✅ Instagram OAuth integration test completed!');
   } catch (error: any) {
-    log('❌ Error testing API access:', 'test');
-    log(error.message, 'test');
+    console.error('❌ Error testing access token:');
+    console.error(`${error.message}`);
+    
     if (error.response?.data) {
-      log(JSON.stringify(error.response.data, null, 2), 'test');
+      console.error('API Error Details:');
+      console.error(error.response.data);
     }
     
-    log('Token may be expired or invalid. You may need to reauthorize.', 'test');
+    console.log('\n⚠️ Your Instagram access token appears to be invalid or expired.');
+    console.log('Please complete the OAuth flow again to generate a new token.');
+    
+    // Generate the authorization URL
     const authUrl = instagramOAuth.getAuthorizationUrl();
-    log(`Please visit: ${authUrl}`, 'test');
+    console.log('\nTo generate a new token:');
+    console.log(`1. Visit: ${authUrl}`);
+    console.log('2. Complete the authorization flow');
+    
+    process.exit(1);
   }
 }
 
 // Run the test
-testInstagramOAuth().catch(err => {
-  log(`Test failed with error: ${err.message}`, 'test');
-  if (err.response?.data) {
-    log(JSON.stringify(err.response.data, null, 2), 'test');
-  }
+testInstagramOAuth().catch(error => {
+  console.error('Unhandled error during test:');
+  console.error(error);
+  process.exit(1);
 });
