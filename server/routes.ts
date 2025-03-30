@@ -79,7 +79,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             message: string 
           };
           
-          if (twitterStatus.configured && !twitterStatus.operational) {
+          console.log("Twitter API status:", twitterStatus);
+          
+          // Always add Twitter error message if available, even if the API is operational
+          // This ensures errors like rate limiting are captured
+          if (twitterStatus.message && twitterStatus.message !== 'Twitter API configured and operational.') {
+            console.log("Adding Twitter error:", twitterStatus.message);
             platformErrors.twitter = twitterStatus.message;
           }
         }
@@ -94,13 +99,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
             message: string 
           };
 
+          console.log(`${platform} API status:`, platformInfo);
+
           if ((platformInfo.available === false) || 
               (platformInfo.configured === false) || 
               (platformInfo.operational === false)) {
+            console.log(`Adding ${platform} error:`, platformInfo.message);
             platformErrors[platform] = platformInfo.message;
           }
         }
       }
+      
+      // Log all platform errors found
+      console.log("All platform errors collected:", platformErrors);
       
       // Process the search and get digital footprint data
       const result = await storage.aggregateDigitalFootprint(searchQuery);

@@ -63,14 +63,21 @@ export default function SearchForm() {
       
       // Check for platform-specific errors in the response
       if (result.platformErrors && Object.keys(result.platformErrors).length > 0) {
+        console.log("Platform errors found in search response:", result.platformErrors);
+        
         // Create a warning toast for each platform with errors
         for (const [platform, error] of Object.entries(result.platformErrors)) {
+          console.log(`Creating toast for ${platform} error:`, error);
+          
           toast({
             title: `${platform.charAt(0).toUpperCase() + platform.slice(1)} API Issue`,
             description: error as string,
             variant: "destructive",
+            duration: 5000, // Show for 5 seconds
           });
         }
+      } else {
+        console.log("No platform errors found in search response");
       }
       
       return result;

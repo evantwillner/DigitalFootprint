@@ -426,27 +426,86 @@ export class MemStorage implements IStorage {
           `${pu.platform}:${pu.username}`).join(', ') : 
         "unknown");
         
-    const response: DigitalFootprintResponse = {
-      username: responseUsername,
-      timestamp: new Date().toISOString(),
-      platforms: platformsToFetch,
-      platformData: validPlatformData,
-      summary: {
-        exposureScore: averageExposureScore,
-        platformsFound: validPlatformData.length,
-        totalContentItems: totalPosts + totalComments + totalLikes + totalShares,
-        breakdownByType: {
-          posts: totalPosts,
-          comments: totalComments,
-          likes: totalLikes,
-          shares: totalShares,
+    // Check platform status for APIs that didn't return data
+    try {
+      const { platformApi } = await import('./services/platform-api');
+      const platformStatus = await platformApi.getPlatformStatus();
+      
+      // Track platform errors
+      const platformErrors: Record<string, string> = {};
+      
+      // Check Twitter API status specifically
+      if (platformsToFetch.includes("twitter") && platformStatus.twitter) {
+        const twitterStatus = platformStatus.twitter as unknown as { 
+          configured: boolean; 
+          operational: boolean; 
+          message: string 
+        };
+        
+        // Log Twitter API status for debugging
+        console.log("Twitter API status check during response creation:", twitterStatus);
+        
+        // If Twitter API credentials are configured but not operational or contains an error message, add error
+        if (twitterStatus.message && twitterStatus.message !== 'Twitter API configured and operational.') {
+          platformErrors.twitter = twitterStatus.message;
+          console.log("Adding Twitter error to response:", twitterStatus.message);
+        }
+      }
+      
+      // Create the final response including any platform errors
+      const response: DigitalFootprintResponse = {
+        username: responseUsername,
+        timestamp: new Date().toISOString(),
+        platforms: platformsToFetch,
+        platformData: validPlatformData,
+        platformErrors: Object.keys(platformErrors).length > 0 ? platformErrors : undefined,
+        summary: {
+          exposureScore: averageExposureScore,
+          platformsFound: validPlatformData.length,
+          totalContentItems: totalPosts + totalComments + totalLikes + totalShares,
+          breakdownByType: {
+            posts: totalPosts,
+            comments: totalComments,
+            likes: totalLikes,
+            shares: totalShares,
+          },
+          topInsights: insights,
+          recommendations,
         },
-        topInsights: insights,
-        recommendations,
-      },
-    };
+      };
+      
+      // Log if platform errors were added to the response
+      if (platformErrors && Object.keys(platformErrors).length > 0) {
+        console.log("Platform errors added to digital footprint response:", platformErrors);
+      }
+      
+      return response;
+    } catch (error) {
+      console.error("Error checking platform status:", error);
+      
+      // If error occurs when checking platform status, return response without platform errors
+      const response: DigitalFootprintResponse = {
+        username: responseUsername,
+        timestamp: new Date().toISOString(),
+        platforms: platformsToFetch,
+        platformData: validPlatformData,
+        summary: {
+          exposureScore: averageExposureScore,
+          platformsFound: validPlatformData.length,
+          totalContentItems: totalPosts + totalComments + totalLikes + totalShares,
+          breakdownByType: {
+            posts: totalPosts,
+            comments: totalComments,
+            likes: totalLikes,
+            shares: totalShares,
+          },
+          topInsights: insights,
+          recommendations,
+        },
+      };
     
-    return response;
+      return response;
+    }
   }
 }
 

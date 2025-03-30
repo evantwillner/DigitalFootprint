@@ -151,18 +151,38 @@ export default function Results() {
       ) : (
         <>
           {data?.platformErrors && Object.keys(data.platformErrors).length > 0 && (
-            <div className="mb-6 p-4 border border-amber-200 rounded-lg bg-amber-50">
-              <h3 className="text-amber-800 font-medium mb-2">Platform API Limitations</h3>
-              <ul className="list-disc pl-5 space-y-1">
-                {Object.entries(data.platformErrors).map(([platform, error]) => (
-                  <li key={platform} className="text-amber-700">
-                    <span className="font-medium">{platform.charAt(0).toUpperCase() + platform.slice(1)}:</span> {error}
-                  </li>
-                ))}
-              </ul>
-              <p className="text-amber-600 text-sm mt-2">
-                Some data may be incomplete or unavailable due to these limitations.
-              </p>
+            <div className="mb-6 p-5 border-2 border-amber-300 rounded-lg bg-amber-50 shadow-sm">
+              <div className="flex items-start">
+                <svg 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  width="24" 
+                  height="24" 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="2" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  className="text-amber-500 mr-3 mt-1 flex-shrink-0"
+                >
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="8" x2="12" y2="12"/>
+                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <div>
+                  <h3 className="text-amber-800 font-semibold mb-2 text-lg">Platform API Limitations Detected</h3>
+                  <ul className="list-disc pl-5 space-y-2">
+                    {Object.entries(data.platformErrors).map(([platform, error]) => (
+                      <li key={platform} className="text-amber-700">
+                        <span className="font-medium">{platform.charAt(0).toUpperCase() + platform.slice(1)}:</span> {error}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-amber-600 mt-3 font-medium">
+                    Some data may be incomplete or unavailable due to these limitations.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
           

@@ -146,6 +146,9 @@ class PlatformApiService {
   public async getPlatformStatus(): Promise<Record<string, { available: boolean; operational?: boolean; message: string }>> {
     const twitterStatus = await twitterApi.getApiStatus();
     
+    // Log the returned Twitter status
+    console.log("Twitter API status returned by TwitterApiService:", twitterStatus);
+    
     return {
       instagram: {
         available: instagramApiV3.hasValidCredentials(),
