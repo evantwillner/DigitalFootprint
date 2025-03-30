@@ -10,6 +10,7 @@ import { log } from '../vite';
 import { instagramApi } from './instagram-api';
 import { twitterApi } from './twitter-api';
 import { facebookApi } from './facebook-api';
+import { redditApi } from './reddit-api';
 import { cacheService } from './cache-service';
 import { rateLimiters } from './rate-limiter';
 
@@ -57,6 +58,8 @@ class PlatformApiService {
         result = await this.fetchTwitterData(normalizedUsername);
       } else if (platform === 'facebook') {
         result = await this.fetchFacebookData(normalizedUsername);
+      } else if (platform === 'reddit') {
+        result = await this.fetchRedditData(normalizedUsername);
       } else {
         log(`Platform ${platform} not implemented yet`, 'platform-api');
         return null;
@@ -252,6 +255,93 @@ class PlatformApiService {
   }
   
   /**
+   * Fetch Reddit data
+   * @param username Reddit username
+   * @returns Platform data or null
+   */
+  private async fetchRedditData(username: string): Promise<PlatformData | null> {
+    try {
+      const cacheKey = `reddit:${username}`;
+      log(`Fetching Reddit data for ${username}`, 'platform-api');
+      
+      // Check cache first
+      const cachedData = cacheService.platformData.get(cacheKey);
+      if (cachedData) {
+        log(`Using cached Reddit data for ${username}`, 'platform-api');
+        return cachedData;
+      }
+      
+      // Check API status before fetching data
+      const apiStatus = await redditApi.getApiStatus();
+      if (!apiStatus.configured || apiStatus.operational === false) {
+        log(`Reddit API not operational: ${apiStatus.message}`, 'platform-api');
+        return null;
+      }
+      
+      // Not in cache, fetch from API
+      try {
+        const result = await redditApi.fetchUserData(username);
+        
+        if (result) {
+          // Cache for 1 hour (or longer for popular accounts)
+          let cacheTtl = this.CACHE_TTL.DEFAULT;
+          if (result.profileData?.followerCount && result.profileData.followerCount > 10000) {
+            cacheTtl = this.CACHE_TTL.POPULAR;
+          }
+          cacheService.platformData.set(cacheKey, result, cacheTtl);
+        }
+        
+        return result;
+      } catch (apiError: any) {
+        // Handle specific error cases
+        if (apiError.message.startsWith('PERMISSION_ERROR:')) {
+          log(`Reddit API permission error for ${username}: ${apiError.message}`, 'platform-api');
+          throw new Error(`Reddit API permission error: ${apiError.message.split(': ')[1]}`);
+        }
+        
+        if (apiError.message.startsWith('PRIVACY_ERROR:')) {
+          log(`Reddit privacy error for ${username}: ${apiError.message}`, 'platform-api');
+          throw new Error(`${apiError.message.split(': ')[1]}`);
+        }
+        
+        if (apiError.message.startsWith('NOT_FOUND:')) {
+          log(`Reddit resource not found for ${username}: ${apiError.message}`, 'platform-api');
+          // Cache "not found" results to avoid repeated lookups
+          cacheService.platformData.set(cacheKey, null, this.CACHE_TTL.ERROR);
+          return null;
+        }
+        
+        if (apiError.message.startsWith('RATE_LIMITED:')) {
+          log(`Reddit API rate limit exceeded for ${username}`, 'platform-api');
+          throw new Error(`Reddit API rate limit exceeded. Please try again later.`);
+        }
+        
+        if (apiError.message.startsWith('AUTH_ERROR:')) {
+          log(`Reddit API authentication error: ${apiError.message}`, 'platform-api');
+          throw new Error(`Reddit API authentication failed. Please update your API credentials.`);
+        }
+        
+        // Re-throw the error for generic handling
+        throw apiError;
+      }
+    } catch (error: any) {
+      log(`Error fetching Reddit data: ${error.message}`, 'platform-api');
+      // Rethrow the error to ensure it propagates to storage.ts
+      if (error.message.includes('private account') || error.message.includes('blocking data')) {
+        throw new Error(`PRIVACY_ERROR: Reddit user ${username} has a private account or is blocking data access.`);
+      } else if (error.message.includes('not found') || error.message.includes('does not exist')) {
+        throw new Error(`NOT_FOUND: Username ${username} not found on Reddit.`);
+      } else if (error.message.includes('rate limit') || error.message.includes('too many requests')) {
+        throw new Error(`RATE_LIMITED: Reddit API rate limit exceeded. Please try again later.`);
+      } else if (error.message.includes('authentication') || error.message.includes('credentials')) {
+        throw new Error(`AUTH_ERROR: Reddit API authentication failed. Please update your API credentials.`);
+      } else {
+        throw new Error(`API_ERROR: Error accessing Reddit data: ${error.message}`);
+      }
+    }
+  }
+
+  /**
    * Fetch Facebook data
    * @param username Facebook username
    * @returns Platform data or null
@@ -344,11 +434,13 @@ class PlatformApiService {
     const twitterStatus = await twitterApi.getApiStatus();
     const instagramStatus = await instagramApi.getApiStatus();
     const facebookStatus = await facebookApi.getApiStatus();
+    const redditStatus = await redditApi.getApiStatus();
     
     // Log the returned API statuses
     console.log("Twitter API status returned by TwitterApiService:", twitterStatus);
     console.log("Instagram API status returned by InstagramApiService:", instagramStatus);
     console.log("Facebook API status returned by FacebookApiService:", facebookStatus);
+    console.log("Reddit API status returned by RedditApiService:", redditStatus);
     
     return {
       instagram: {
@@ -366,6 +458,11 @@ class PlatformApiService {
         available: facebookStatus.configured,
         operational: facebookStatus.operational,
         message: facebookStatus.message
+      },
+      reddit: {
+        available: redditStatus.configured,
+        operational: redditStatus.operational,
+        message: redditStatus.message
       }
       // Add other platforms as they are implemented
     };
