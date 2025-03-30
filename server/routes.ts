@@ -667,6 +667,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Twitter API test endpoint - for debugging purposes
+  apiRouter.get("/test/twitter/:username", async (req: Request, res: Response) => {
+    try {
+      const { username } = req.params;
+      console.log(`Testing Twitter API for username: ${username}`);
+      
+      // Use dynamic import to avoid circular dependencies
+      const { twitterApi } = await import('./services/twitter-api');
+      
+      // Check the API status
+      const apiStatus = twitterApi.getApiStatus();
+      
+      if (!apiStatus.configured) {
+        return res.status(400).json({
+          success: false,
+          message: "Twitter API is not configured",
+          apiStatus,
+          username,
+          dataAvailable: false
+        });
+      }
+      
+      // Try to fetch data from Twitter
+      const result = await twitterApi.fetchUserData(username);
+      
+      if (result) {
+        // Only return basic profile info to avoid exposing sensitive data
+        const profileData = result.profileData || {};
+        const activityData = result.activityData || {};
+        
+        // Format bio with length check
+        let bioText = "No bio available";
+        if (profileData.bio) {
+          bioText = profileData.bio.substring(0, 50);
+          if (profileData.bio.length > 50) {
+            bioText += '...';
+          }
+        }
+        
+        const testResult = {
+          success: true,
+          message: "Successfully retrieved Twitter data",
+          apiStatus,
+          username: result.username,
+          displayName: profileData.displayName || "Unknown",
+          bio: bioText,
+          followerCount: profileData.followerCount || 0,
+          postCount: activityData.totalPosts || 0,
+          dataAvailable: true
+        };
+        res.json(testResult);
+      } else {
+        res.status(404).json({
+          success: false,
+          message: "No data found for this username",
+          apiStatus,
+          username,
+          dataAvailable: false
+        });
+      }
+    } catch (error: any) {
+      console.error(`Error testing Twitter API: ${error.message}`);
+      res.status(500).json({
+        success: false,
+        message: `API error: ${error.message}`,
+        error: error.message,
+        dataAvailable: false
+      });
+    }
+  });
+
   // Create HTTP server
   const httpServer = createServer(app);
   
