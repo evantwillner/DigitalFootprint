@@ -9,6 +9,8 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis
 import { CHART_COLORS, generateTimelineData, generateTopicData } from "@/lib/chart-utils";
 import RedditDataCharts from "@/components/visualization/RedditDataCharts";
 import { InstagramDataCharts } from "@/components/visualization/InstagramDataCharts";
+import { InstagramSentimentAnalysis } from "@/components/visualization/InstagramSentimentAnalysis";
+import { InstagramContentTopics } from "@/components/visualization/InstagramContentTopics";
 import NewInsights from "@/components/results/new-insights";
 
 // Reusable component for displaying insights from any platform
@@ -1079,7 +1081,7 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
         </div>
       )}
       
-      {/* Add InstagramDataCharts when Instagram data is available */}
+      {/* Instagram Data Visualizations */}
       {instagramData && (
         <div className="mb-8">
           <h3 className="text-xl font-semibold mb-4">Instagram Data Visualization</h3>
@@ -1087,6 +1089,18 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
             platformData={instagramData} 
             isLoading={isLoading} 
           />
+          
+          {/* Add new Instagram visualization components */}
+          <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <InstagramSentimentAnalysis
+              platformData={instagramData}
+              isLoading={isLoading}
+            />
+            <InstagramContentTopics
+              platformData={instagramData}
+              isLoading={isLoading}
+            />
+          </div>
         </div>
       )}
       
