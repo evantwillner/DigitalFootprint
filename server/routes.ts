@@ -709,14 +709,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`Testing Instagram API for username: ${username}`);
       
       // Use dynamic import to avoid circular dependencies
-      const { instagramApi } = await import('./services/instagram-api');
+      const { instagramApiApify } = await import('./services/instagram-api-apify');
       
       // Try to fetch data from Instagram
-      const result = await instagramApi.fetchUserData(username);
+      const result = await instagramApiApify.fetchUserData(username);
       
       if (result) {
         // Only return basic profile info to avoid exposing sensitive data
-        const apiStatus = await instagramApi.getApiStatus();
+        const apiStatus = await instagramApiApify.getApiStatus();
         
         // Extract data with null checks
         const profileData = result.profileData || {};
@@ -747,7 +747,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.status(404).json({
           success: false,
           message: "No data found for this username",
-          apiStatus: await instagramApi.getApiStatus(),
+          apiStatus: await instagramApiApify.getApiStatus(),
           username,
           dataAvailable: false
         });

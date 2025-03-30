@@ -7,7 +7,7 @@
  * To run: npx tsx server/test-instagram-access.ts <username>
  */
 
-import { instagramApiV4 } from './services/instagram-api-v4';
+import { instagramApiApify } from './services/instagram-api-apify';
 
 async function testInstagramAPI() {
   // Get username from command line argument
@@ -24,7 +24,7 @@ async function testInstagramAPI() {
   
   // First check API status
   console.log('\n📊 Checking Instagram API status...');
-  const status = await instagramApiV4.getApiStatus();
+  const status = await instagramApiApify.getApiStatus();
   console.log(`Status: ${JSON.stringify(status, null, 2)}`);
   
   if (!status.configured) {
@@ -46,7 +46,7 @@ async function testInstagramAPI() {
   console.time('Data fetch time');
   
   try {
-    const data = await instagramApiV4.fetchUserData(username);
+    const data = await instagramApiApify.fetchUserData(username);
     console.timeEnd('Data fetch time');
     
     if (!data) {

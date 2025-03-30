@@ -281,7 +281,7 @@ export class InstagramApiApifyService {
             percentage: 0.1 // Placeholder percentage
           })),
           activityTimeline: [
-            { period: 'last week', count: posts.filter(p => new Date(p.timestamp || '').getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000).length }
+            { period: 'last week', count: posts.filter((p: any) => new Date(p.timestamp || '').getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000).length }
           ],
           sentimentBreakdown: {
             positive: 0.33,
