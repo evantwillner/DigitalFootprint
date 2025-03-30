@@ -997,6 +997,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test Reddit API endpoint - public access with explicit JSON response
+  apiRouter.get("/public/test/reddit/:username", async (req: Request, res: Response) => {
+    // Set explicit content type to ensure JSON response
+    res.setHeader('Content-Type', 'application/json');
+    try {
+      const { username } = req.params;
+      console.log(`Testing Reddit API for username: ${username}`);
+      
+      // Use dynamic import to avoid circular dependencies
+      const { redditApi } = await import('./services/reddit-api');
+      
+      // Check the API status
+      const apiStatus = await redditApi.getApiStatus();
+      
+      if (!apiStatus.configured || apiStatus.operational === false) {
+        // Get a more specific error message based on the API status
+        let errorMessage = "Reddit API is not configured";
+        if (apiStatus.configured && !apiStatus.operational) {
+          errorMessage = "Reddit API credentials are not valid";
+        }
+        
+        return res.status(503).json({
+          success: false,
+          message: errorMessage,
+          apiStatus,
+          username,
+          dataAvailable: false
+        });
+      }
+      
+      // Try to fetch data from Reddit
+      const result = await redditApi.fetchUserData(username);
+      
+      if (result) {
+        // Return the Reddit data
+        res.json({
+          success: true,
+          data: result,
+          apiStatus,
+          username,
+          dataAvailable: true
+        });
+      } else {
+        res.status(404).json({
+          success: false,
+          message: "No data found for this username",
+          apiStatus,
+          username,
+          dataAvailable: false
+        });
+      }
+    } catch (error: any) {
+      console.error(`Error testing Reddit API: ${error.message}`);
+      res.status(500).json({
+        success: false,
+        message: `API error: ${error.message}`,
+        error: error.message,
+        dataAvailable: false
+      });
+    }
+  });
+
   // Create HTTP server
   const httpServer = createServer(app);
   

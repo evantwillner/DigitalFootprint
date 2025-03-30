@@ -1,51 +1,135 @@
 /**
- * Reddit API Integration
+ * Reddit API Direct Integration
  * 
- * This service provides access to Reddit's API through snoowrap
- * to fetch user data, post history, and subreddit activity.
+ * This service provides access to Reddit's API using direct API calls
+ * instead of relying on the snoowrap library. This approach gives us
+ * more control over the API interaction and error handling.
  */
 
-import Snoowrap from 'snoowrap';
+import axios from 'axios';
 import { Platform, PlatformData } from '@shared/schema';
 import { log } from '../vite';
 import type { PlatformApiStatus } from './types.d.ts';
 
 export class RedditApiService {
-  private readonly client: Snoowrap | null = null;
   private isConfigured: boolean = false;
   private isOperational: boolean = false;
 
+  private accessToken: string | null = null;
+  private tokenExpiry: number = 0;
+  
   constructor() {
     try {
       if (process.env.REDDIT_CLIENT_ID && process.env.REDDIT_CLIENT_SECRET) {
-        this.client = new Snoowrap({
-          userAgent: 'DigitalFootprintTracker/1.0.0',
-          clientId: process.env.REDDIT_CLIENT_ID,
-          clientSecret: process.env.REDDIT_CLIENT_SECRET,
-          // Using script-type app authentication (read-only)
-          username: process.env.REDDIT_USERNAME || '',
-          password: process.env.REDDIT_PASSWORD || '',
-        });
-        
-        // Configure rate limiting and request throttling
-        if (this.client) {
-          this.client.config({
-            requestDelay: 1000, // 1 second between requests
-            continueAfterRatelimitError: true,
-            retryErrorCodes: [502, 503, 504, 522],
-            maxRetryAttempts: 3
-          });
-          
-          this.isConfigured = true;
-          log('Reddit API Service initialized', 'reddit-api');
-        }
+        log('Initializing Reddit API with provided credentials', 'reddit-api');
+        this.isConfigured = true;
+        log('Reddit API Service configured for application-only OAuth', 'reddit-api');
       } else {
         log('⚠️ Reddit API Service not configured - missing API keys', 'reddit-api');
       }
     } catch (error) {
-      log(`Error initializing Reddit API: ${error}`, 'reddit-api');
-      this.client = null;
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log(`Error initializing Reddit API: ${errorMsg}`, 'reddit-api');
       this.isConfigured = false;
+    }
+  }
+  
+  /**
+   * Get an OAuth access token from Reddit using the application-only flow
+   * This follows Reddit's documented OAuth flow for application-only tokens
+   */
+  private async getAccessToken(): Promise<string> {
+    try {
+      if (this.accessToken && Date.now() < this.tokenExpiry) {
+        // Use existing token if it's still valid
+        return this.accessToken as string;
+      }
+      
+      // We need to get a new access token
+      log('Getting new Reddit access token...', 'reddit-api');
+      
+      // Create the authorization string (base64 encoded client_id:client_secret)
+      const authString = Buffer.from(
+        `${process.env.REDDIT_CLIENT_ID}:${process.env.REDDIT_CLIENT_SECRET}`
+      ).toString('base64');
+      
+      // Make the token request
+      const response = await axios.post(
+        'https://www.reddit.com/api/v1/access_token',
+        'grant_type=client_credentials',
+        {
+          headers: {
+            'User-Agent': 'DigitalFootprintTracker/1.0.0 (by /u/anonymous_user)',
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Authorization': `Basic ${authString}`
+          }
+        }
+      );
+      
+      // Process the response
+      const data = response.data;
+      if (data && data.access_token) {
+        this.accessToken = data.access_token;
+        // Store token expiry time (with a 5-minute safety margin)
+        this.tokenExpiry = Date.now() + ((data.expires_in - 300) * 1000);
+        
+        log(`Successfully obtained Reddit access token, expires in ${data.expires_in} seconds`, 'reddit-api');
+        return this.accessToken as string;
+      } else {
+        throw new Error('Invalid response from Reddit OAuth endpoint');
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log(`Error getting Reddit access token: ${errorMsg}`, 'reddit-api');
+      
+      // Log detailed error if it's an Axios response error
+      if (axios.isAxiosError(error) && error.response) {
+        log(`Status: ${error.response.status}, Data: ${JSON.stringify(error.response.data)}`, 'reddit-api');
+      }
+      
+      throw new Error(`Failed to get Reddit access token: ${errorMsg}`);
+    }
+  }
+
+  /**
+   * Make a direct API call to Reddit
+   */
+  private async callRedditApi(endpoint: string): Promise<any> {
+    try {
+      // Get an access token (or use existing one)
+      const accessToken = await this.getAccessToken();
+      
+      // Make the API request
+      const response = await axios.get(`https://oauth.reddit.com${endpoint}`, {
+        headers: {
+          'User-Agent': 'DigitalFootprintTracker/1.0.0 (by /u/anonymous_user)',
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
+      
+      return response.data;
+    } catch (error) {
+      // Handle specific error cases
+      if (axios.isAxiosError(error)) {
+        if (error.response) {
+          if (error.response.status === 401) {
+            // Clear token to force a refresh on next call
+            this.accessToken = null;
+            log('Reddit access token expired, will request a new one on next call', 'reddit-api');
+            throw new Error('AUTH_ERROR: Reddit API authentication failed. Token expired or invalid.');
+          } else if (error.response.status === 404) {
+            throw new Error(`NOT_FOUND: Resource not found at ${endpoint}`);
+          } else if (error.response.status === 403) {
+            throw new Error(`PRIVACY_ERROR: Access forbidden to ${endpoint}`);
+          } else if (error.response.status === 429) {
+            throw new Error(`RATE_LIMITED: Reddit API rate limit exceeded. Please try again later.`);
+          }
+        }
+      }
+      
+      // For other errors, rethrow with context
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      throw new Error(`API_ERROR: Error calling Reddit API: ${errorMsg}`);
     }
   }
 
@@ -53,15 +137,23 @@ export class RedditApiService {
    * Checks if the Reddit API credentials are valid and working
    */
   public async verifyCredentials(): Promise<boolean> {
-    if (!this.client) return false;
-    
     try {
-      // Try to fetch a simple resource to test credentials
-      await this.client.getSubreddit('announcements').created_utc;
-      this.isOperational = true;
-      return true;
+      // Try to access a public endpoint to verify API
+      log('Verifying Reddit API connectivity...', 'reddit-api');
+      const subreddit = await this.callRedditApi('/r/announcements/about');
+      
+      if (subreddit && subreddit.data && subreddit.data.display_name) {
+        log(`Reddit API verification successful: accessed r/${subreddit.data.display_name}`, 'reddit-api');
+        this.isOperational = true;
+        return true;
+      } else {
+        log('Reddit API verification failed: could not retrieve subreddit data', 'reddit-api');
+        this.isOperational = false;
+        return false;
+      }
     } catch (error) {
-      log(`Reddit API credential verification failed: ${error}`, 'reddit-api');
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log(`Reddit API credential verification failed: ${errorMsg}`, 'reddit-api');
       this.isOperational = false;
       return false;
     }
@@ -100,46 +192,46 @@ export class RedditApiService {
    * @returns Platform data or null if not found
    */
   public async fetchUserData(username: string): Promise<PlatformData | null> {
-    if (!this.client) {
-      throw new Error('AUTH_ERROR: Reddit API client not initialized');
-    }
-    
     try {
       log(`Fetching Reddit data for user: ${username}`, 'reddit-api');
       
-      // Get the Reddit user
-      const user = await this.client.getUser(username);
+      // Get user information
+      const userData = await this.callRedditApi(`/user/${username}/about`);
+      if (!userData || !userData.data) {
+        throw new Error(`NOT_FOUND: Reddit user ${username} not found.`);
+      }
       
-      // Get user profile data
-      const about = await user.fetch();
+      const user = userData.data;
       
-      // Check if account exists but is suspended
-      if (about.is_suspended) {
+      // Check if account is suspended
+      if (user.is_suspended) {
         throw new Error(`PRIVACY_ERROR: Reddit user ${username} account is suspended.`);
       }
       
       // Get recent submissions (posts)
-      const submissions = await user.getSubmissions({limit: 25});
+      const postsData = await this.callRedditApi(`/user/${username}/submitted?limit=25`);
+      const submissions = postsData?.data?.children || [];
       
       // Get recent comments
-      const comments = await user.getComments({limit: 50});
+      const commentsData = await this.callRedditApi(`/user/${username}/comments?limit=50`);
+      const comments = commentsData?.data?.children || [];
       
       // Extract user karma values
-      const postKarma = about.link_karma || 0;
-      const commentKarma = about.comment_karma || 0;
+      const postKarma = user.link_karma || 0;
+      const commentKarma = user.comment_karma || 0;
       
       // Determine top subreddits based on where user posts/comments
       const subredditCounts: Record<string, number> = {};
       
       // Count posts per subreddit
       submissions.forEach((post: any) => {
-        const subreddit = post.subreddit.display_name;
+        const subreddit = post.data.subreddit;
         subredditCounts[subreddit] = (subredditCounts[subreddit] || 0) + 1;
       });
       
       // Count comments per subreddit
       comments.forEach((comment: any) => {
-        const subreddit = comment.subreddit.display_name;
+        const subreddit = comment.data.subreddit;
         subredditCounts[subreddit] = (subredditCounts[subreddit] || 0) + 1;
       });
       
@@ -150,7 +242,7 @@ export class RedditApiService {
         .map(entry => entry[0]);
       
       // Calculate posts per day (average)
-      const accountAgeInDays = (Date.now() / 1000 - about.created_utc) / 86400;
+      const accountAgeInDays = (Date.now() / 1000 - user.created_utc) / 86400;
       const postsPerDay = accountAgeInDays > 0 
         ? (submissions.length / accountAgeInDays) 
         : 0;
@@ -160,28 +252,28 @@ export class RedditApiService {
         // Add posts/submissions
         ...submissions.slice(0, 10).map((post: any) => ({
           type: 'post' as const,
-          content: post.title + (post.selftext ? `\n\n${post.selftext.substring(0, 300)}${post.selftext.length > 300 ? '...' : ''}` : ''),
-          timestamp: new Date(post.created_utc * 1000).toISOString(),
-          url: `https://reddit.com${post.permalink}`,
+          content: post.data.title + (post.data.selftext ? `\n\n${post.data.selftext.substring(0, 300)}${post.data.selftext.length > 300 ? '...' : ''}` : ''),
+          timestamp: new Date(post.data.created_utc * 1000).toISOString(),
+          url: `https://reddit.com${post.data.permalink}`,
           engagement: {
-            likes: post.ups,
-            comments: post.num_comments
+            likes: post.data.ups,
+            comments: post.data.num_comments
           },
-          sentiment: this.determineSentiment(post.title + post.selftext),
-          topics: [post.subreddit.display_name]
+          sentiment: this.determineSentiment(post.data.title + post.data.selftext),
+          topics: [post.data.subreddit]
         })),
         
         // Add comments
         ...comments.slice(0, 15).map((comment: any) => ({
           type: 'comment' as const,
-          content: comment.body.substring(0, 300) + (comment.body.length > 300 ? '...' : ''),
-          timestamp: new Date(comment.created_utc * 1000).toISOString(),
-          url: `https://reddit.com${comment.permalink}`,
+          content: comment.data.body.substring(0, 300) + (comment.data.body.length > 300 ? '...' : ''),
+          timestamp: new Date(comment.data.created_utc * 1000).toISOString(),
+          url: `https://reddit.com${comment.data.permalink}`,
           engagement: {
-            likes: comment.ups
+            likes: comment.data.ups
           },
-          sentiment: this.determineSentiment(comment.body),
-          topics: [comment.subreddit.display_name]
+          sentiment: this.determineSentiment(comment.data.body),
+          topics: [comment.data.subreddit]
         }))
       ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       
@@ -214,11 +306,11 @@ export class RedditApiService {
         username,
         profileData: {
           displayName: username,
-          bio: about.subreddit?.public_description || '',
-          followerCount: about.subreddit?.subscribers || 0,
-          joinDate: new Date(about.created_utc * 1000).toISOString(),
+          bio: user.subreddit?.public_description || '',
+          followerCount: user.subreddit?.subscribers || 0,
+          joinDate: new Date(user.created_utc * 1000).toISOString(),
           profileUrl: `https://reddit.com/user/${username}`,
-          avatarUrl: about.icon_img || about.subreddit?.icon_img || ''
+          avatarUrl: user.icon_img || user.subreddit?.icon_img || ''
         },
         activityData: {
           totalPosts: postKarma,
@@ -304,13 +396,13 @@ export class RedditApiService {
       log(`Error fetching Reddit data for ${username}: ${error.message}`, 'reddit-api');
       
       // Handle specific Reddit API errors
-      if (error.statusCode === 404 || error.message.includes('not found')) {
+      if (error.message.includes('NOT_FOUND')) {
         throw new Error(`NOT_FOUND: Reddit user ${username} not found.`);
-      } else if (error.statusCode === 403 || error.message.includes('forbidden') || error.message.includes('PRIVACY_ERROR')) {
+      } else if (error.message.includes('PRIVACY_ERROR')) {
         throw new Error(`PRIVACY_ERROR: Reddit user ${username} has a private account or is blocking data access.`);
-      } else if (error.statusCode === 429 || error.message.includes('rate limit')) {
+      } else if (error.message.includes('RATE_LIMITED')) {
         throw new Error(`RATE_LIMITED: Reddit API rate limit exceeded. Please try again later.`);
-      } else if (!this.client || error.message.includes('AUTH_ERROR')) {
+      } else if (error.message.includes('AUTH_ERROR')) {
         throw new Error(`AUTH_ERROR: Reddit API authentication failed. Please update your API credentials.`);
       }
       
@@ -374,17 +466,14 @@ export class RedditApiService {
   }
   
   /**
-   * Generate activity timeline from submissions and comments
-   * @param submissions User's submitted posts
+   * Generate activity timeline from posts and comments
+   * @param posts User's posts
    * @param comments User's comments
    * @returns Activity timeline with periods and counts
    */
-  private generateActivityTimeline(submissions: any[], comments: any[]): Array<{ period: string, count: number }> {
-    // Combine submissions and comments to get all activity
-    const allActivity = [...submissions, ...comments];
-    
+  private generateActivityTimeline(posts: any[], comments: any[]): Array<{ period: string, count: number }> {
     // No activity, return empty timeline
-    if (allActivity.length === 0) {
+    if (posts.length === 0 && comments.length === 0) {
       return [
         { period: 'Past day', count: 0 },
         { period: 'Past week', count: 0 },
@@ -395,7 +484,7 @@ export class RedditApiService {
     }
     
     // Get current time
-    const now = new Date().getTime() / 1000; // Convert to seconds for Reddit timestamps
+    const now = Date.now() / 1000; // Convert to seconds for Reddit timestamps
     
     // Time periods in seconds
     const day = 24 * 60 * 60;
@@ -410,9 +499,9 @@ export class RedditApiService {
     let pastYearCount = 0;
     let olderCount = 0;
     
-    // Categorize activity into time periods
-    allActivity.forEach(item => {
-      const createdTime = item.created_utc || item.created;
+    // Helper function to categorize content by time
+    const categorizeByTime = (item: any) => {
+      const createdTime = item.data.created_utc;
       const timeElapsed = now - createdTime;
       
       if (timeElapsed <= day) {
@@ -426,7 +515,11 @@ export class RedditApiService {
       } else {
         olderCount++;
       }
-    });
+    };
+    
+    // Categorize posts and comments into time periods
+    posts.forEach(categorizeByTime);
+    comments.forEach(categorizeByTime);
     
     // Create timeline data
     return [
@@ -460,7 +553,14 @@ export class RedditApiService {
     if (totalPercentage !== 100) {
       // Adjust the first topic to make the total 100
       const diff = 100 - totalPercentage;
-      subredditTopics[0].percentage += diff;
+      if (subredditTopics.length > 0) {
+        subredditTopics[0].percentage += diff;
+      }
+    }
+    
+    // If no topics, return a default
+    if (subredditTopics.length === 0) {
+      return [{ topic: 'No activity', percentage: 100 }];
     }
     
     return subredditTopics;
