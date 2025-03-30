@@ -667,6 +667,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Check Twitter API status without authentication
+  apiRouter.get("/twitter-api-status", async (_req: Request, res: Response) => {
+    try {
+      // Lazy-load the API service to avoid circular dependencies
+      const { twitterApi } = await import('./services/twitter-api');
+      
+      const status = twitterApi.getApiStatus();
+      
+      return res.json({
+        status,
+        configured: twitterApi.hasValidCredentials(),
+        message: "Twitter API status check"
+      });
+    } catch (err) {
+      console.error("Error checking Twitter API status:", err);
+      return res.status(500).json({ message: "Error checking Twitter API status" });
+    }
+  });
+  
   // Twitter API test endpoint - for debugging purposes
   apiRouter.get("/test/twitter/:username", async (req: Request, res: Response) => {
     try {
