@@ -44,8 +44,8 @@ async function main() {
   console.time('API request time');
   
   try {
-    // Log level is set to info during this test
-    log.level = 'info';
+    // Set logging to verbose for this test
+    // Note: Vite log doesn't have a level property, we'll just use it as is
     
     const data = await instagramApiV4.fetchUserData(username);
     console.timeEnd('API request time');
@@ -63,31 +63,52 @@ async function main() {
     console.log('\n✅ Successfully retrieved Instagram data!');
     console.log('\nData summary:');
     console.log(`- Username: ${data.username}`);
-    console.log(`- Display name: ${data.profileData.displayName}`);
-    console.log(`- Followers: ${data.profileData.followerCount}`);
-    console.log(`- Following: ${data.profileData.followingCount}`);
-    console.log(`- Posts: ${data.activityData.totalPosts}`);
     
-    console.log('\nAnalysis results:');
-    console.log(`- Exposure score: ${data.analysisResults.exposureScore}/100`);
-    console.log(`- Top topics: ${data.analysisResults.topTopics.map(t => `${t.topic} (${Math.round(t.percentage * 100)}%)`).join(', ')}`);
-    
-    if (data.analysisResults.privacyConcerns.length > 0) {
-      console.log('\nPrivacy concerns:');
-      data.analysisResults.privacyConcerns.forEach(concern => {
-        console.log(`- [${concern.severity.toUpperCase()}] ${concern.type}: ${concern.description}`);
-      });
+    if (data.profileData) {
+      console.log(`- Display name: ${data.profileData.displayName}`);
+      console.log(`- Followers: ${data.profileData.followerCount}`);
+      console.log(`- Following: ${data.profileData.followingCount}`);
+    } else {
+      console.log('- Profile data: Not available');
     }
     
-    console.log('\nContent breakdown:');
-    Object.entries(data.analysisResults.platformSpecificMetrics.contentBreakdown).forEach(([type, percentage]) => {
-      console.log(`- ${type}: ${Math.round((percentage as number) * 100)}%`);
-    });
+    if (data.activityData) {
+      console.log(`- Posts: ${data.activityData.totalPosts}`);
+    } else {
+      console.log('- Activity data: Not available');
+    }
     
-    console.log('\nRecommended actions:');
-    data.analysisResults.recommendedActions.forEach(action => {
-      console.log(`- ${action}`);
-    });
+    if (data.analysisResults) {
+      console.log('\nAnalysis results:');
+      console.log(`- Exposure score: ${data.analysisResults.exposureScore}/100`);
+      
+      if (data.analysisResults.topTopics) {
+        console.log(`- Top topics: ${data.analysisResults.topTopics.map(t => `${t.topic} (${Math.round(t.percentage * 100)}%)`).join(', ')}`);
+      }
+      
+      if (data.analysisResults.privacyConcerns && data.analysisResults.privacyConcerns.length > 0) {
+        console.log('\nPrivacy concerns:');
+        data.analysisResults.privacyConcerns.forEach(concern => {
+          console.log(`- [${concern.severity.toUpperCase()}] ${concern.type}: ${concern.description}`);
+        });
+      }
+      
+      if (data.analysisResults.platformSpecificMetrics && data.analysisResults.platformSpecificMetrics.contentBreakdown) {
+        console.log('\nContent breakdown:');
+        Object.entries(data.analysisResults.platformSpecificMetrics.contentBreakdown).forEach(([type, percentage]) => {
+          console.log(`- ${type}: ${Math.round((percentage as number) * 100)}%`);
+        });
+      }
+      
+      if (data.analysisResults.recommendedActions) {
+        console.log('\nRecommended actions:');
+        data.analysisResults.recommendedActions.forEach(action => {
+          console.log(`- ${action}`);
+        });
+      }
+    } else {
+      console.log('\nAnalysis results: Not available');
+    }
     
     console.log('\nTest completed successfully!');
   } catch (error) {

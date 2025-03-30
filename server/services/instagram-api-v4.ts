@@ -12,6 +12,7 @@ import { log } from '../vite';
 import { cacheService } from './cache-service';
 import { rateLimiters } from './rate-limiter';
 import { instagramOAuth } from './instagram-oauth';
+import { tokenManager } from './token-manager';
 
 export class InstagramApiServiceV4 {
   private readonly CACHE_TTL = {
@@ -39,13 +40,20 @@ export class InstagramApiServiceV4 {
    * Check if the service has valid credentials
    * @returns boolean indicating if credentials are available
    */
-  public hasValidCredentials(): boolean {
-    // Check for access token from OAuth
-    if (instagramOAuth.getAccessToken()) {
+  public async hasValidCredentials(): Promise<boolean> {
+    // Check for valid token in token manager
+    const hasToken = await tokenManager.hasValidToken('instagram');
+    if (hasToken) {
       return true;
     }
     
-    // Check for INSTAGRAM_ACCESS_TOKEN in environment
+    // Check for access token from OAuth as fallback
+    const oauthToken = await instagramOAuth.getAccessToken();
+    if (oauthToken) {
+      return true;
+    }
+    
+    // Check for INSTAGRAM_ACCESS_TOKEN in environment as fallback
     if (process.env.INSTAGRAM_ACCESS_TOKEN) {
       return true;
     }
@@ -63,7 +71,8 @@ export class InstagramApiServiceV4 {
       return this.apiStatusCache.status;
     }
     
-    if (!this.hasValidCredentials()) {
+    const hasCredentials = await this.hasValidCredentials();
+    if (!hasCredentials) {
       const status = {
         configured: false,
         message: 'Instagram API not configured. Add INSTAGRAM_ACCESS_TOKEN to environment or complete OAuth flow.'
@@ -88,7 +97,27 @@ export class InstagramApiServiceV4 {
       // Update our rate limit counters
       this.updateRateLimitCounters();
       
-      const token = instagramOAuth.getAccessToken() || process.env.INSTAGRAM_ACCESS_TOKEN;
+      // Get token from token manager first, then fallback to oauth service or env var
+      let token = null;
+      const tokenData = await tokenManager.getToken('instagram', true);
+      
+      if (tokenData) {
+        token = tokenData.accessToken;
+      } else {
+        // Fallbacks
+        const oauthToken = await instagramOAuth.getAccessToken();
+        token = oauthToken || process.env.INSTAGRAM_ACCESS_TOKEN;
+      }
+      
+      if (!token) {
+        const status = {
+          configured: true,
+          operational: false,
+          message: 'Instagram API credentials available but token not accessible.'
+        };
+        this.apiStatusCache = { status, timestamp: Date.now() };
+        return status;
+      }
       
       // Test with a simple API call using our backoff method
       const testResponse = await this.fetchWithBackoff(
@@ -122,13 +151,26 @@ export class InstagramApiServiceV4 {
     } catch (error: any) {
       // Specific error handling based on response codes
       if (error.response?.status === 400 || error.message.includes('400')) {
-        const status = {
-          configured: true,
-          operational: false,
-          message: 'Instagram access token is expired or invalid. Please refresh or generate a new token.'
-        };
-        this.apiStatusCache = { status, timestamp: Date.now() };
-        return status;
+        // Try to refresh the token
+        try {
+          await tokenManager.refreshToken('instagram');
+          const refreshStatus = {
+            configured: true,
+            operational: true,
+            message: 'Instagram API token was refreshed successfully.'
+          };
+          this.apiStatusCache = { status: refreshStatus, timestamp: Date.now() };
+          return refreshStatus;
+        } catch (refreshError) {
+          // If refresh fails, return the original error
+          const status = {
+            configured: true,
+            operational: false,
+            message: 'Instagram access token is expired or invalid. The system attempted to refresh it automatically but failed.'
+          };
+          this.apiStatusCache = { status, timestamp: Date.now() };
+          return status;
+        }
       }
       
       // Check for rate limiting (429)
@@ -221,31 +263,51 @@ export class InstagramApiServiceV4 {
       // Try different methods in order of preference
       let result: PlatformData | null = null;
       
-      // 1. Try OAuth first if available
-      if (instagramOAuth.getAccessToken()) {
-        try {
-          log('Attempting fetch via OAuth Basic Display API', 'instagram-api');
+      // 1. Try token manager or OAuth first
+      try {
+        const hasToken = await tokenManager.hasValidToken('instagram');
+        const hasOAuthToken = await instagramOAuth.hasValidToken();
+        
+        if (hasToken || hasOAuthToken) {
+          log('Attempting fetch via Basic Display API with token from token manager or OAuth', 'instagram-api');
           result = await this.fetchViaBasicDisplayApi(normalizedUsername);
           if (result) {
             // Cache the successful result
             cacheService.platformData.set(cacheKey, result, this.CACHE_TTL.DEFAULT);
             return result;
           }
-        } catch (error: any) {
-          if (error.response?.status === 429) {
-            this.handleRateLimitExceeded();
-            log('Instagram API rate limit exceeded, will retry later', 'instagram-api');
-            return null;
-          }
-          log(`OAuth fetch failed: ${error.message}`, 'instagram-api');
         }
+      } catch (error: any) {
+        if (error.response?.status === 429) {
+          this.handleRateLimitExceeded();
+          log('Instagram API rate limit exceeded, will retry later', 'instagram-api');
+          return null;
+        }
+        log(`Token manager/OAuth fetch failed: ${error.message}`, 'instagram-api');
       }
       
       // 2. Try Graph API if access token is available
-      if (process.env.INSTAGRAM_ACCESS_TOKEN) {
+      // Get token from token manager, OAuth, or environment
+      let graphToken = null;
+      const tokenData = await tokenManager.getToken('instagram', false); // Don't auto-refresh here
+      
+      if (tokenData) {
+        graphToken = tokenData.accessToken;
+      } else {
+        // Try OAuth
+        const oauthToken = await instagramOAuth.getAccessToken();
+        if (oauthToken) {
+          graphToken = oauthToken;
+        } else if (process.env.INSTAGRAM_ACCESS_TOKEN) {
+          // Fallback to environment
+          graphToken = process.env.INSTAGRAM_ACCESS_TOKEN;
+        }
+      }
+      
+      if (graphToken) {
         try {
           log('Attempting fetch via Graph API', 'instagram-api');
-          result = await this.fetchViaGraphApi(normalizedUsername, process.env.INSTAGRAM_ACCESS_TOKEN);
+          result = await this.fetchViaGraphApi(normalizedUsername, graphToken);
           if (result) {
             // Cache the successful result
             cacheService.platformData.set(cacheKey, result, this.CACHE_TTL.DEFAULT);
@@ -390,10 +452,19 @@ export class InstagramApiServiceV4 {
    * @returns Platform data or null
    */
   private async fetchViaBasicDisplayApi(username: string): Promise<PlatformData | null> {
-    // Check if we have a valid token from OAuth
-    const accessToken = instagramOAuth.getAccessToken();
+    // Get token from token manager first, then fallback to OAuth service
+    let accessToken = null;
+    const tokenData = await tokenManager.getToken('instagram', true);
+    
+    if (tokenData) {
+      accessToken = tokenData.accessToken;
+    } else {
+      // Fallback to OAuth service
+      accessToken = await instagramOAuth.getAccessToken();
+    }
+    
     if (!accessToken) {
-      log('No Instagram access token available from OAuth service', 'instagram-api');
+      log('No Instagram access token available', 'instagram-api');
       return null;
     }
     
@@ -706,13 +777,13 @@ export class InstagramApiServiceV4 {
       .reduce((acc: Record<string, number>, date: string) => {
         acc[date] = (acc[date] || 0) + 1;
         return acc;
-      }, {});
+      }, {} as Record<string, number>);
     
     // Convert to timeline format
     const timeline = Object.entries(activityDates)
       .map(([date, count]) => ({
         period: date,
-        count
+        count: Number(count)
       }))
       .sort((a, b) => a.period.localeCompare(b.period))
       .slice(-10); // Last 10 dates
@@ -830,13 +901,13 @@ export class InstagramApiServiceV4 {
       .reduce((acc: Record<string, number>, date: string) => {
         acc[date] = (acc[date] || 0) + 1;
         return acc;
-      }, {});
+      }, {} as Record<string, number>);
     
     // Convert to timeline format
     const timeline = Object.entries(activityDates)
       .map(([date, count]) => ({
         period: date,
-        count
+        count: Number(count)
       }))
       .sort((a, b) => a.period.localeCompare(b.period))
       .slice(-10); // Last 10 days
@@ -851,13 +922,13 @@ export class InstagramApiServiceV4 {
       const type = post.node?.is_video ? 'videos' : 'photos';
       acc[type] = (acc[type] || 0) + 1;
       return acc;
-    }, {});
+    }, {} as Record<string, number>);
     
     // Calculate percentages for content breakdown
-    const totalItems = Object.values(mediaTypes).reduce((sum: number, count: number) => sum + count, 0) || 1;
+    const totalItems = Object.values(mediaTypes).reduce((sum: number, count) => sum + Number(count), 0) || 1;
     const contentBreakdown: Record<string, number> = {};
-    Object.entries(mediaTypes).forEach(([type, count]: [string, number]) => {
-      contentBreakdown[type] = count / totalItems;
+    Object.entries(mediaTypes).forEach(([type, count]) => {
+      contentBreakdown[type] = Number(count) / totalItems;
     });
     
     return {
@@ -942,11 +1013,11 @@ export class InstagramApiServiceV4 {
     });
     
     // Convert to percentages
-    const total = Object.values(types).reduce((sum, count) => sum + count, 0);
+    const total = Object.values(types).reduce((sum: number, count) => sum + Number(count), 0);
     const result: Record<string, number> = {};
     
     Object.entries(types).forEach(([type, count]) => {
-      result[type] = count / total;
+      result[type] = Number(count) / total;
     });
     
     return result;
@@ -976,7 +1047,7 @@ export class InstagramApiServiceV4 {
     
     // Convert to array and sort by count
     return Object.entries(hashtagCounts)
-      .map(([tag, count]) => ({ tag, count }))
+      .map(([tag, count]) => ({ tag, count: Number(count) }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 10); // Top 10 hashtags
   }
@@ -1071,7 +1142,7 @@ function extractTopicsFromContent(contentItems: any[]): { topic: string; percent
   
   // Use most common words as topics
   const topics = Object.entries(keywords)
-    .sort((a, b) => b[1] - a[1])
+    .sort((a, b) => Number(b[1]) - Number(a[1]))
     .slice(0, 3)
     .map(([keyword]) => keyword.charAt(0).toUpperCase() + keyword.slice(1));
   
@@ -1090,10 +1161,10 @@ function extractTopicsFromContent(contentItems: any[]): { topic: string; percent
   }));
   
   // Normalize percentages
-  const total = result.reduce((sum, item) => sum + item.percentage, 0);
+  const total = result.reduce((sum: number, item) => sum + item.percentage, 0);
   return result.map(item => ({
     topic: item.topic,
-    percentage: item.percentage / total
+    percentage: Number(item.percentage) / total
   }));
 }
 
@@ -1248,7 +1319,7 @@ function extractHashtagsPublic(posts: any[]): { tag: string; count: number; }[] 
   
   // Convert to array and sort by count
   return Object.entries(hashtagCounts)
-    .map(([tag, count]) => ({ tag, count }))
+    .map(([tag, count]) => ({ tag, count: Number(count) }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 10); // Top 10 hashtags
 }

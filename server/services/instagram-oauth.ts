@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { log } from '../vite';
+import { tokenManager } from './token-manager';
 
 /**
  * Instagram OAuth Service for token generation and management
@@ -9,16 +10,13 @@ import { log } from '../vite';
  * 2. Exchanging authorization codes for access tokens
  * 3. Refreshing long-lived access tokens
  * 4. Storing and retrieving tokens
+ * 
+ * Uses the central TokenManager for persistent storage and automatic refresh
  */
 export class InstagramOAuthService {
   private clientId: string | undefined;
   private clientSecret: string | undefined;
   private redirectUri: string;
-  private currentToken: {
-    accessToken: string | null;
-    expiresAt: number;
-    refreshToken: string | null;
-  };
   
   constructor() {
     this.clientId = process.env.INSTAGRAM_CLIENT_ID;
@@ -34,40 +32,6 @@ export class InstagramOAuthService {
     this.redirectUri = process.env.INSTAGRAM_REDIRECT_URI || 
       (replitDomain ? `${replitDomain}/api/instagram/callback` : 'http://localhost:5000/api/instagram/callback');
     
-    this.currentToken = {
-      accessToken: process.env.INSTAGRAM_ACCESS_TOKEN || null,
-      expiresAt: 0,
-      refreshToken: null
-    };
-    
-    // If we have a token from the environment, set a reasonable expiration and log it
-    if (this.currentToken.accessToken) {
-      // Initial expiration: 60 days from now
-      this.currentToken.expiresAt = Date.now() + (60 * 24 * 60 * 60 * 1000);
-      log(`Using access token from environment variable`, 'instagram-oauth');
-      // We need to define verifyToken after the constructor, but we want to call it here
-      // Use setTimeout to delay the verification until after the class is fully defined
-      setTimeout(async () => {
-        try {
-          const isValid = await this.verifyToken(this.currentToken.accessToken as string);
-          if (!isValid) {
-            log(`⚠️ The access token provided in INSTAGRAM_ACCESS_TOKEN appears to be invalid or expired`, 'instagram-oauth');
-            // Clear the token if it's invalid
-            this.currentToken.accessToken = null;
-            this.currentToken.expiresAt = 0;
-          } else {
-            log(`✅ Successfully verified the Instagram access token`, 'instagram-oauth');
-          }
-        } catch (error: any) {
-          log(`Error verifying access token: ${error.message}`, 'instagram-oauth');
-          if (error.response?.data) {
-            log(`API Error: ${JSON.stringify(error.response.data)}`, 'instagram-oauth');
-          }
-          // Don't clear the token automatically as it might just be a temporary API issue
-        }
-      }, 0);
-    }
-    
     log(`Instagram OAuth Service initialized with client ID: ${this.clientId ? 'configured' : 'missing'}`, 'instagram-oauth');
   }
   
@@ -81,18 +45,16 @@ export class InstagramOAuthService {
   /**
    * Check if we currently have a valid token
    */
-  public hasValidToken(): boolean {
-    return !!this.currentToken.accessToken && Date.now() < this.currentToken.expiresAt;
+  public async hasValidToken(): Promise<boolean> {
+    return await tokenManager.hasValidToken('instagram');
   }
   
   /**
    * Get the current access token, if available
    */
-  public getAccessToken(): string | null {
-    if (this.hasValidToken()) {
-      return this.currentToken.accessToken;
-    }
-    return null;
+  public async getAccessToken(): Promise<string | null> {
+    const token = await tokenManager.getToken('instagram', true);
+    return token ? token.accessToken : null;
   }
   
   /**
@@ -150,18 +112,24 @@ export class InstagramOAuthService {
       
       const { access_token, user_id } = response.data;
       
-      // Update current token
-      this.currentToken = {
-        accessToken: access_token,
-        // Default expiration is usually 1 hour
-        expiresAt: Date.now() + (1 * 60 * 60 * 1000),
-        refreshToken: null
-      };
+      // Get a long-lived token before storing
+      const longLivedToken = await this.getLongLivedToken(access_token);
+      
+      // Store the token in the token manager
+      await tokenManager.setToken('instagram', {
+        accessToken: longLivedToken.accessToken,
+        expiresAt: Date.now() + (longLivedToken.expiresIn * 1000),
+        additionalData: {
+          userId: user_id,
+          clientId: this.clientId,
+          clientSecret: this.clientSecret
+        }
+      });
       
       return {
-        accessToken: access_token,
+        accessToken: longLivedToken.accessToken,
         userId: user_id,
-        expiresIn: 3600 // 1 hour in seconds
+        expiresIn: longLivedToken.expiresIn
       };
       
     } catch (error: any) {
@@ -196,13 +164,6 @@ export class InstagramOAuthService {
       });
       
       const { access_token, expires_in } = response.data;
-      
-      // Update current token
-      this.currentToken = {
-        accessToken: access_token,
-        expiresAt: Date.now() + (expires_in * 1000),
-        refreshToken: null
-      };
       
       return {
         accessToken: access_token,
@@ -245,6 +206,7 @@ export class InstagramOAuthService {
   
   /**
    * Refresh a long-lived token
+   * This is now handled by the token manager, but kept for compatibility
    * @param longLivedToken Long-lived access token to refresh
    * @returns Object containing the refreshed token
    */
@@ -262,12 +224,13 @@ export class InstagramOAuthService {
       
       const { access_token, expires_in } = response.data;
       
-      // Update current token
-      this.currentToken = {
+      // Update the token in the token manager
+      const currentToken = await tokenManager.getToken('instagram', false);
+      await tokenManager.setToken('instagram', {
         accessToken: access_token,
         expiresAt: Date.now() + (expires_in * 1000),
-        refreshToken: null
-      };
+        additionalData: currentToken?.additionalData
+      });
       
       return {
         accessToken: access_token,
