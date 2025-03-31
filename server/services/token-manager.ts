@@ -590,3 +590,29 @@ export const tokenManager = new TokenManager();
 tokenManager.initFromEnvironment().catch(error => {
   log(`Error initializing tokens from environment: ${error}`, 'token-manager');
 });
+interface TokenRotationStrategy {
+  getNextToken(): string;
+  addToken(token: string): void;
+  removeToken(token: string): void;
+}
+
+class RoundRobinTokenRotation implements TokenRotationStrategy {
+  private tokens: string[] = [];
+  private currentIndex = 0;
+
+  getNextToken(): string {
+    if (this.tokens.length === 0) return '';
+    const token = this.tokens[this.currentIndex];
+    this.currentIndex = (this.currentIndex + 1) % this.tokens.length;
+    return token;
+  }
+
+  addToken(token: string): void {
+    this.tokens.push(token);
+  }
+
+  removeToken(token: string): void {
+    this.tokens = this.tokens.filter(t => t !== token);
+    this.currentIndex = 0;
+  }
+}
