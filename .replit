@@ -52,4 +52,4 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npx http-server docs -p 3000"
+args = "npx http-server docs -p 5000"

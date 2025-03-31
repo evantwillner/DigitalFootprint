@@ -30,3 +30,28 @@ export function TimelineItem({ title, date, description, icon, className, ...pro
     </div>
   )
 }
+
+export interface TimelineProps extends React.HTMLAttributes<HTMLDivElement> {
+  items: Array<{
+    title: string
+    date?: string
+    description?: string
+    icon?: React.ReactNode
+  }>
+}
+
+export function Timeline({ items, className, ...props }: TimelineProps) {
+  return (
+    <div className={cn("space-y-4", className)} {...props}>
+      {items.map((item, index) => (
+        <TimelineItem
+          key={index}
+          title={item.title}
+          date={item.date}
+          description={item.description}
+          icon={item.icon}
+        />
+      ))}
+    </div>
+  )
+}

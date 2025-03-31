@@ -429,6 +429,132 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get current user (if authenticated)
   apiRouter.get("/user", getCurrentUser);
   
+  // New detailed API status endpoint that includes more information about tokens
+  apiRouter.get("/platform-api-detailed-status", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      // Import necessary modules
+      const axios = await import('axios');
+      const { tokenManager } = await import('./services/token-manager');
+      
+      // Get the platforms we want to check
+      const platforms = ['twitter', 'facebook', 'instagram', 'reddit'] as const;
+      
+      // Create a detailed status object with information about each platform
+      const detailedStatus: Record<string, any> = {};
+      
+      // For each platform, check token existence, expiry, and verification
+      for (const platform of platforms) {
+        const token = await tokenManager.getToken(platform, false);
+        
+        detailedStatus[platform] = {
+          hasToken: !!token,
+          tokenExpired: token ? (token.expiresAt ? Date.now() > token.expiresAt : false) : true,
+          tokenDetails: token ? {
+            expiresAt: token.expiresAt ? new Date(token.expiresAt).toISOString() : 'never',
+            hasRefreshToken: !!token.refreshToken,
+            additionalDataKeys: token.additionalData ? Object.keys(token.additionalData) : []
+          } : null
+        };
+        
+        // If we have a token, try to verify it with the API
+        if (token) {
+          try {
+            let apiVerified = false;
+            let apiResponse = null;
+            let apiError = null;
+            
+            switch (platform) {
+              case 'twitter':
+                try {
+                  const response = await axios.default.get('https://api.twitter.com/2/users/by/username/elonmusk', {
+                    headers: { 'Authorization': `Bearer ${token.accessToken}` }
+                  });
+                  apiVerified = response.status === 200;
+                  apiResponse = response.status === 200 ? response.data : null;
+                } catch (e: any) {
+                  apiError = {
+                    message: e.message,
+                    status: e.response?.status,
+                    data: e.response?.data
+                  };
+                }
+                break;
+                
+              case 'facebook':
+                try {
+                  const response = await axios.default.get('https://graph.facebook.com/v17.0/me', {
+                    params: { access_token: token.accessToken }
+                  });
+                  apiVerified = response.status === 200 && !!response.data?.id;
+                  apiResponse = response.status === 200 ? response.data : null;
+                } catch (e: any) {
+                  apiError = {
+                    message: e.message,
+                    status: e.response?.status,
+                    data: e.response?.data
+                  };
+                }
+                break;
+                
+              case 'instagram':
+                try {
+                  const response = await axios.default.get('https://graph.instagram.com/me', {
+                    params: {
+                      access_token: token.accessToken,
+                      fields: 'id,username'
+                    }
+                  });
+                  apiVerified = response.status === 200 && !!response.data?.id;
+                  apiResponse = response.status === 200 ? response.data : null;
+                } catch (e: any) {
+                  apiError = {
+                    message: e.message,
+                    status: e.response?.status,
+                    data: e.response?.data
+                  };
+                }
+                break;
+                
+              case 'reddit':
+                try {
+                  const response = await axios.default.get('https://oauth.reddit.com/api/v1/me', {
+                    headers: {
+                      'Authorization': `Bearer ${token.accessToken}`,
+                      'User-Agent': 'Digital Wellness Platform/1.0'
+                    }
+                  });
+                  apiVerified = response.status === 200 && !!response.data;
+                  apiResponse = response.status === 200 ? response.data : null;
+                } catch (e: any) {
+                  apiError = {
+                    message: e.message,
+                    status: e.response?.status,
+                    data: e.response?.data
+                  };
+                }
+                break;
+            }
+            
+            detailedStatus[platform].apiVerified = apiVerified;
+            detailedStatus[platform].apiResponse = apiResponse;
+            detailedStatus[platform].apiError = apiError;
+          } catch (verifyError: any) {
+            detailedStatus[platform].apiVerified = false;
+            detailedStatus[platform].verifyError = verifyError.message;
+          }
+        }
+      }
+      
+      return res.json(detailedStatus);
+    } catch (err: any) {
+      console.error("Error checking detailed API status:", err);
+      return res.status(500).json({
+        message: "Error checking detailed API status",
+        error: err.message
+      });
+    }
+  });
+  
   // Get search history for current user
   apiRouter.get("/search-history", requireAuth, async (req: Request, res: Response) => {
     try {
