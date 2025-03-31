@@ -8,6 +8,7 @@ import { CHART_COLORS } from "@/lib/chart-utils";
 import { PlatformData } from "@shared/schema";
 import { SparkleEffect } from "@/components/ui/sparkle-effect";
 import { SiReddit } from "react-icons/si";
+import { Timeline } from "@/components/ui/timeline";
 
 // Define the community interface for Reddit
 interface RedditCommunity {
@@ -37,6 +38,8 @@ interface RedditPlatformData extends PlatformData {
   communities?: RedditCommunity[];
   connections?: RedditConnection[];
   statistics?: RedditStatistics;
+  activityTimeline?: { period: string; count: number; date: string }[];
+  topCommunities?: { name: string; interactions: number }[];
 }
 
 type RedditConnectionsAnalysisProps = {
@@ -134,13 +137,18 @@ export function RedditConnectionsAnalysis({ platformData, isLoading, data }: Red
     { name: "Other", value: subredditCategories.other || 1 },
   ];
 
+  const timelineItems = (platformData.activityTimeline || []).map((activity) => ({
+    title: activity.period,
+    description: `${activity.count} interactions`,
+    date: activity.date,
+  }));
+
   return (
     <div className="space-y-6">
-      {/* Summary Tab - Placeholder for actual data */}
       <div className="bg-gray-100 p-4 rounded">
         <h2 className="text-lg font-bold mb-2">Summary</h2>
         <p>Exposure Score: {data?.summary?.exposureScore || "Loading..."}</p>
-        <p>Platform Data: {JSON.stringify(data?.summary?.platformData) || "Loading..."}</p> {/* Example; Replace with actual rendering */}
+        <p>Platform Data: {JSON.stringify(data?.summary?.platformData) || "Loading..."}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -286,12 +294,30 @@ export function RedditConnectionsAnalysis({ platformData, isLoading, data }: Red
         </Card>
       </div>
 
-      {/* Timeline Section - Placeholder */}
-      <div className="bg-gray-100 p-4 rounded">
-        <h2 className="text-lg font-bold mb-2">Timeline</h2>
-        <p>Timeline data is currently unavailable.  This section needs to be implemented.</p>
-      </div>
+      <Card>
+        <CardContent className="p-6">
+          <h2 className="text-lg font-bold mb-4">Reddit Activity Timeline</h2>
+          <Timeline items={timelineItems} />
+        </CardContent>
+      </Card>
 
+      <Card>
+        <CardContent className="p-6">
+          <h2 className="text-lg font-bold mb-4">Communities Interaction</h2>
+          {data.topCommunities?.length > 0 ? (
+            <ul className="space-y-2">
+              {data.topCommunities.map((community: any, index: number) => (
+                <li key={index} className="flex justify-between items-center">
+                  <span>{community.name}</span>
+                  <span className="text-muted-foreground">{community.interactions} interactions</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-muted-foreground">No community data available</p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
