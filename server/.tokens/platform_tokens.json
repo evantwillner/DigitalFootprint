@@ -1,0 +1,25 @@
+{
+  "instagram": {
+    "accessToken": "EAAkC9nZBcNI4BOZCnaHZCqZATLq4QcpIvcGJyXK2mDK5gX5nhsDe3VaRwc3ZAGJZCuRu0Oe9ZAKZAlLKFldtlsIgi08vZAWhnWCPuUeD8OSVRoYgLUTdEjSmXGxSoj9UK5JodNUnVGuTqJWyyHHdeiT848u6zUdfwFsdmQhvMukXEXWZCc9rAIWrnR4Hhm28C6acG5hPYq60nXoWcnjHALB95qPi6kkO4psWXBkZCjs9TOGdyvWPy6tWME9CoosuZA1o6U4ZD",
+    "expiresAt": 1748572854250
+  },
+  "twitter": {
+    "accessToken": "AAAAAAAAAAAAAAAAAAAAACkT0QEAAAAAb34OvmVMCKx9KF0f3qQ85c%2FoCrg%3DOm16EkuSSuVdSAahU4yxiAdzvIItQrWRWQi2gxquXbRY7BvGBs",
+    "additionalData": {
+      "apiKey": "4lpj6NqaEJ7xjFj2Cf68PS0Mq",
+      "apiSecret": "MD3ti0mY1gSTDYiiaEM9IIRMMoQRa43yJa2GZX0LisorLGQgsr"
+    }
+  },
+  "facebook": {
+    "accessToken": "EAAkC9nZBcNI4BO0L9Ko3ZAxaYlhun3i2ufG68BqEckrWZChLV3sQqXtIQBwJr3UfFdFXwcgu1H9f8hNeCt6S2oCUgUGqx8emt6ZCUO3PgLnjpeHJ7UsIlXopiJlysU1fHd34JM9X7WLfOX5B1ce6ZCeQmQUXl3glcWwxzZBIesxrfZC3bQCR4JCtNd3",
+    "additionalData": {}
+  },
+  "reddit": {
+    "accessToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6IlNIQTI1NjpzS3dsMnlsV0VtMjVmcXhwTU40cWY4MXE2OWFFdWFyMnpLMUdhVGxjdWNZIiwidHlwIjoiSldUIn0.eyJzdWIiOiJsb2lkIiwiZXhwIjoxNzQzNDc1Mjc4LjUyOTg0OSwiaWF0IjoxNzQzMzg4ODc4LjUyOTg0OSwianRpIjoiZU9XTFA4UUszV01mZHAxeHYwbmdjLXIyTUVpVXF3IiwiY2lkIjoiUkVBZkRGVVRYNTFpWEJpX1ZmZFRNZyIsImxpZCI6InQyXzFtYjUyYWMwcWkiLCJsY2EiOjE3NDMzODg4Nzg1MTUsInNjcCI6ImVKeUtWdEpTaWdVRUFBRF9fd056QVNjIiwiZmxvIjo2fQ.MAj9bxfyqolkunteqBQGbRhC3WTHNGYs4z7vIVeMyEAGD9oLNIEvoGoNCxoUZiLLjRMnK0FOY-pPvs_o-Ca_uAswSCccTZBl4OXFywpAFOj4A3ejtimDj7XSNi-kgjbqaB9FTT30ItY5BdL7Bkl9wDfY-8vXv-g9WTxjCFxQHCYD3FsA_cLoL2XPKtzTvb9wHV1CowLxJWL6Z563bkAITmnE8DaYlPMxZ51_b8QeyEOjKuAz_GFnqMmv_rbBWD-_TV1hRybClNw3sgb-AAnDEFrzgRP13VJNf8fAmAMCZWi_zu3SUgm3mkTYUlRdnXw5KwNjEp35NqToJ0mm7TWK4Q",
+    "expiresAt": 1743474978559,
+    "additionalData": {
+      "clientId": "REAfDFUTX51iXBi_VfdTMg",
+      "clientSecret": "L1Qm-9wq4EIiFIweQLuUn-NGDVTxsA"
+    }
+  }
+}
