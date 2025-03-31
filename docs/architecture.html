@@ -4,9 +4,15 @@
 <head>
     <title>Architecture Diagram</title>
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default'
+        });
+    </script>
 </head>
 <body>
-    <div class="mermaid">
+    <pre class="mermaid">
     graph TD
         Client[Client Layer]
         Server[Server Layer]
@@ -25,25 +31,22 @@
         Storage --> |Data Store| DB
         Storage --> |Platform Requests| APIs
 
-        subgraph Platform APIs
+        subgraph Platform_APIs
             Twitter[Twitter API]
             Instagram[Instagram API]
             Facebook[Facebook API]
             Reddit[Reddit API]
         end
 
-        subgraph Core Services
+        subgraph Core_Services
             TokenManager[Token Manager]
             PlatformAPI[Platform API Service]
             SearchService[Search Service]
             Analytics[Analytics Service]
         end
 
-        Server --> Core Services
-        Core Services --> Platform APIs
-    </div>
-    <script>
-        mermaid.initialize({ startOnLoad: true });
-    </script>
+        Server --> Core_Services
+        Core_Services --> Platform_APIs
+    </pre>
 </body>
 </html>
