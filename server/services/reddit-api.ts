@@ -11,19 +11,25 @@ import { Platform, PlatformData } from '@shared/schema';
 import { log } from '../vite';
 import type { PlatformApiStatus } from './types.d.ts';
 import { openAiSentiment } from './openai-sentiment';
+import { tokenManager, TokenData } from './token-manager';
 
 export class RedditApiService {
   private isConfigured: boolean = false;
   private isOperational: boolean = false;
-
-  private accessToken: string | null = null;
-  private tokenExpiry: number = 0;
+  private tokenInitialized: boolean = false;
+  private maxRetries: number = 2;
   
   constructor() {
     try {
       if (process.env.REDDIT_CLIENT_ID && process.env.REDDIT_CLIENT_SECRET) {
         log('Initializing Reddit API with provided credentials', 'reddit-api');
         this.isConfigured = true;
+        
+        // Set up initial token data in the token manager if not already present
+        this.initializeToken().catch(error => {
+          log(`Error initializing Reddit token: ${error}`, 'reddit-api');
+        });
+        
         log('Reddit API Service configured for application-only OAuth', 'reddit-api');
       } else {
         log('⚠️ Reddit API Service not configured - missing API keys', 'reddit-api');
@@ -36,14 +42,40 @@ export class RedditApiService {
   }
   
   /**
+   * Initialize token in the TokenManager if needed
+   */
+  private async initializeToken(): Promise<void> {
+    try {
+      // Check if we already have a token in the manager
+      const existingToken = await tokenManager.getToken('reddit', false);
+      
+      if (!existingToken || !existingToken.accessToken) {
+        // We need to get a fresh token
+        await this.getAccessToken();
+      } else {
+        // We have a token, mark as initialized
+        this.tokenInitialized = true;
+        log('Reddit token already initialized in TokenManager', 'reddit-api');
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log(`Error checking Reddit token: ${errorMsg}`, 'reddit-api');
+      throw error;
+    }
+  }
+  
+  /**
    * Get an OAuth access token from Reddit using the application-only flow
    * This follows Reddit's documented OAuth flow for application-only tokens
    */
   private async getAccessToken(): Promise<string> {
     try {
-      if (this.accessToken && Date.now() < this.tokenExpiry) {
-        // Use existing token if it's still valid
-        return this.accessToken as string;
+      // First, check if TokenManager has a valid token
+      const token = await tokenManager.getToken('reddit', true);
+      if (token && token.accessToken) {
+        this.tokenInitialized = true;
+        log('Using existing Reddit token from TokenManager', 'reddit-api');
+        return token.accessToken;
       }
       
       // We need to get a new access token
@@ -70,12 +102,22 @@ export class RedditApiService {
       // Process the response
       const data = response.data;
       if (data && data.access_token) {
-        this.accessToken = data.access_token;
-        // Store token expiry time (with a 5-minute safety margin)
-        this.tokenExpiry = Date.now() + ((data.expires_in - 300) * 1000);
+        const tokenData: TokenData = {
+          accessToken: data.access_token,
+          // Store token expiry time (with a 5-minute safety margin)
+          expiresAt: Date.now() + ((data.expires_in - 300) * 1000),
+          additionalData: {
+            clientId: process.env.REDDIT_CLIENT_ID,
+            clientSecret: process.env.REDDIT_CLIENT_SECRET
+          }
+        };
+        
+        // Store the token in the TokenManager
+        await tokenManager.setToken('reddit', tokenData);
+        this.tokenInitialized = true;
         
         log(`Successfully obtained Reddit access token, expires in ${data.expires_in} seconds`, 'reddit-api');
-        return this.accessToken as string;
+        return tokenData.accessToken;
       } else {
         throw new Error('Invalid response from Reddit OAuth endpoint');
       }
@@ -93,18 +135,21 @@ export class RedditApiService {
   }
 
   /**
-   * Make a direct API call to Reddit
+   * Make a direct API call to Reddit with automatic token refresh and retries
    */
-  private async callRedditApi(endpoint: string): Promise<any> {
+  private async callRedditApi(endpoint: string, retryCount: number = 0): Promise<any> {
     try {
-      // Get an access token (or use existing one)
-      const accessToken = await this.getAccessToken();
+      // Get an access token (or use existing one) from TokenManager
+      const token = await tokenManager.getToken('reddit', true);
+      if (!token || !token.accessToken) {
+        throw new Error('No valid access token available for Reddit API');
+      }
       
       // Make the API request
       const response = await axios.get(`https://oauth.reddit.com${endpoint}`, {
         headers: {
           'User-Agent': 'DigitalFootprintTracker/1.0.0 (by /u/anonymous_user)',
-          'Authorization': `Bearer ${accessToken}`
+          'Authorization': `Bearer ${token.accessToken}`
         }
       });
       
@@ -114,22 +159,58 @@ export class RedditApiService {
       if (axios.isAxiosError(error)) {
         if (error.response) {
           if (error.response.status === 401) {
-            // Clear token to force a refresh on next call
-            this.accessToken = null;
-            log('Reddit access token expired, will request a new one on next call', 'reddit-api');
-            throw new Error('AUTH_ERROR: Reddit API authentication failed. Token expired or invalid.');
+            // Token expired or invalid, force a refresh
+            log('Reddit access token invalid or expired', 'reddit-api');
+            
+            // If we have retries left, refresh the token and try again
+            if (retryCount < this.maxRetries) {
+              log(`Attempting to refresh token and retry (${retryCount + 1}/${this.maxRetries})`, 'reddit-api');
+              
+              // Force token refresh for next attempt
+              await tokenManager.refreshToken('reddit');
+              
+              // Wait a moment before retrying
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              
+              // Retry the API call with incremented retry count
+              return this.callRedditApi(endpoint, retryCount + 1);
+            } else {
+              throw new Error('AUTH_ERROR: Reddit API authentication failed after multiple attempts. Token expired or invalid.');
+            }
           } else if (error.response.status === 404) {
             throw new Error(`NOT_FOUND: Resource not found at ${endpoint}`);
           } else if (error.response.status === 403) {
-            throw new Error(`PRIVACY_ERROR: Access forbidden to ${endpoint}`);
+            throw new Error(`PRIVACY_ERROR: Access forbidden to ${endpoint}. Check account privacy settings.`);
           } else if (error.response.status === 429) {
-            throw new Error(`RATE_LIMITED: Reddit API rate limit exceeded. Please try again later.`);
+            // Rate limited, wait and retry if we have retries left
+            if (retryCount < this.maxRetries) {
+              const retryAfter = error.response.headers['retry-after'] ? 
+                parseInt(error.response.headers['retry-after']) * 1000 : 
+                5000; // Default: 5 seconds
+              
+              log(`Rate limited by Reddit API. Waiting ${retryAfter/1000}s before retry ${retryCount + 1}/${this.maxRetries}`, 'reddit-api');
+              await new Promise(resolve => setTimeout(resolve, retryAfter));
+              
+              // Retry the API call with incremented retry count
+              return this.callRedditApi(endpoint, retryCount + 1);
+            } else {
+              throw new Error(`RATE_LIMITED: Reddit API rate limit exceeded. Please try again later.`);
+            }
+          } else if (error.response.status >= 500) {
+            // Server error, retry if we have retries left
+            if (retryCount < this.maxRetries) {
+              log(`Reddit API server error (${error.response.status}). Retrying ${retryCount + 1}/${this.maxRetries}`, 'reddit-api');
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              return this.callRedditApi(endpoint, retryCount + 1);
+            }
           }
         }
       }
       
       // For other errors, rethrow with context
       const errorMsg = error instanceof Error ? error.message : String(error);
+      log(`Reddit API error for ${endpoint}: ${errorMsg}`, 'reddit-api');
+      
       throw new Error(`API_ERROR: Error calling Reddit API: ${errorMsg}`);
     }
   }

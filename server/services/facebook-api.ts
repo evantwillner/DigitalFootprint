@@ -11,12 +11,14 @@ import { RateLimiter } from './rate-limiter';
 import type { PlatformApiStatus } from '../services/types.d.ts';
 import { openAiSentiment } from './openai-sentiment';
 import { log } from '../vite';
+import { tokenManager } from './token-manager';
 
 class FacebookApiService {
   private appId: string | undefined;
   private appSecret: string | undefined;
   private accessToken: string | undefined;
   private apiBaseUrl = 'https://graph.facebook.com/v17.0';
+  private isInitialized: boolean = false;
   
   // Rate limiter for Facebook API requests (200 requests per hour = ~1 request per 18 seconds)
   private rateLimiter = new RateLimiter({ 
@@ -26,9 +28,91 @@ class FacebookApiService {
   });
   
   constructor() {
-    this.appId = process.env.FACEBOOK_APP_ID;
-    this.appSecret = process.env.FACEBOOK_APP_SECRET;
-    this.accessToken = process.env.FACEBOOK_ACCESS_TOKEN;
+    // Initialize credentials asynchronously
+    this.initialize();
+  }
+  
+  /**
+   * Initialize the Facebook API service with credentials from token manager
+   */
+  private async initialize(): Promise<void> {
+    try {
+      // Try to get credentials from token manager first
+      const token = await tokenManager.getToken('facebook', true);
+      
+      if (token && token.accessToken) {
+        this.accessToken = token.accessToken;
+        
+        // Get additional data if available
+        if (token.additionalData) {
+          this.appId = token.additionalData.clientId;
+          this.appSecret = token.additionalData.clientSecret;
+        }
+        
+        log('Facebook API Service initialized with token from TokenManager', 'facebook-api');
+        this.isInitialized = true;
+      } else {
+        // Fall back to environment variables
+        this.appId = process.env.FACEBOOK_APP_ID;
+        this.appSecret = process.env.FACEBOOK_APP_SECRET;
+        this.accessToken = process.env.FACEBOOK_ACCESS_TOKEN;
+        
+        // If we have credentials from environment, store them in token manager
+        if (this.isConfigured()) {
+          await this.storeCredentialsInTokenManager();
+          log('Facebook API Service initialized from environment variables', 'facebook-api');
+          this.isInitialized = true;
+        } else {
+          log('⚠️ Facebook API Service not configured - missing API credentials', 'facebook-api');
+        }
+      }
+    } catch (error) {
+      log(`Error initializing Facebook API service: ${error}`, 'facebook-api');
+    }
+  }
+  
+  /**
+   * Store current credentials in the token manager
+   */
+  private async storeCredentialsInTokenManager(): Promise<void> {
+    if (this.accessToken) {
+      await tokenManager.setToken('facebook', {
+        accessToken: this.accessToken,
+        additionalData: {
+          clientId: this.appId,
+          clientSecret: this.appSecret
+        }
+      });
+      log('Stored Facebook credentials in token manager', 'facebook-api');
+    }
+  }
+  
+  /**
+   * Refresh the access token using the token manager
+   */
+  private async refreshAccessToken(): Promise<boolean> {
+    try {
+      const newToken = await tokenManager.refreshToken('facebook');
+      
+      if (newToken && newToken.accessToken) {
+        this.accessToken = newToken.accessToken;
+        
+        // Update additional data if available
+        if (newToken.additionalData) {
+          this.appId = newToken.additionalData.clientId;
+          this.appSecret = newToken.additionalData.clientSecret;
+        }
+        
+        log('Facebook access token refreshed successfully', 'facebook-api');
+        return true;
+      }
+      
+      log('Failed to refresh Facebook access token', 'facebook-api');
+      return false;
+    } catch (error) {
+      log(`Error refreshing Facebook access token: ${error}`, 'facebook-api');
+      return false;
+    }
   }
   
   /**
@@ -40,15 +124,28 @@ class FacebookApiService {
   }
   
   /**
+   * Ensure the service is initialized before making API calls
+   */
+  private async ensureInitialized(): Promise<boolean> {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+    return this.isConfigured();
+  }
+  
+  /**
    * Verify the Facebook API credentials by making a test request
    * @returns Object with API status details
    */
   public async getApiStatus(): Promise<PlatformApiStatus> {
+    // Ensure we're initialized
+    await this.ensureInitialized();
+    
     if (!this.isConfigured()) {
       return {
         configured: false,
         operational: false,
-        message: 'Facebook API credentials not configured. Missing app ID, app secret, or access token.'
+        message: 'Facebook API credentials not configured. This may be resolved automatically through the token management service.'
       };
     }
     
@@ -86,15 +183,18 @@ class FacebookApiService {
       }
     } catch (error: any) {
       let errorMessage = 'Facebook API request failed';
+      let shouldTryRefresh = false;
       
       if (error.response) {
         // The request was made and the server responded with a non-2xx status
         const statusCode = error.response.status;
         const errorData = error.response.data?.error;
         
-        if (statusCode === 401 || statusCode === 403) {
+        if (statusCode === 401 || statusCode === 403 || 
+            (errorData && errorData.code === 190)) {
           errorMessage = 'Facebook API authentication failed. Your access token may be invalid or expired.';
-        } else if (statusCode === 429) {
+          shouldTryRefresh = true;
+        } else if (statusCode === 429 || (errorData && errorData.code === 4)) {
           errorMessage = 'Facebook API rate limit exceeded. Please try again later.';
         } else if (errorData && errorData.message) {
           errorMessage = `Facebook API error: ${errorData.message}`;
@@ -102,6 +202,43 @@ class FacebookApiService {
       } else if (error.request) {
         // The request was made but no response was received
         errorMessage = 'Facebook API service is currently unavailable. No response received.';
+      }
+      
+      // If we got an auth error, try to refresh the token
+      if (shouldTryRefresh) {
+        log('Facebook API authentication failed - attempting token refresh', 'facebook-api');
+        
+        // Try to refresh the token
+        const refreshed = await this.refreshAccessToken();
+        
+        if (refreshed) {
+          // Retry the request with the new token
+          try {
+            const retryResponse = await axios.get(`${this.apiBaseUrl}/me`, {
+              params: {
+                access_token: this.accessToken,
+                fields: 'id,name'
+              }
+            });
+            
+            if (retryResponse.status === 200 && retryResponse.data && retryResponse.data.id) {
+              return {
+                configured: true,
+                operational: true,
+                message: 'Facebook API token refreshed and now operational.'
+              };
+            }
+          } catch (retryError) {
+            log(`Retry after token refresh also failed: ${retryError}`, 'facebook-api');
+          }
+        }
+        
+        // If we couldn't refresh or the retry failed, return an error
+        return {
+          configured: true,
+          operational: false,
+          message: `${errorMessage} Automatic token refresh was attempted.`
+        };
       }
       
       return {
@@ -118,8 +255,18 @@ class FacebookApiService {
    * @returns Platform data object or null if not found
    */
   public async fetchUserData(username: string): Promise<PlatformData | null> {
-    if (!this.isConfigured()) {
-      console.error('Facebook API is not configured. Unable to fetch user data.');
+    // Ensure we're initialized and configured
+    const isConfigured = await this.ensureInitialized();
+    
+    if (!isConfigured) {
+      log('Facebook API is not configured. Unable to fetch user data.', 'facebook-api');
+      return null;
+    }
+    
+    // Verify API status
+    const apiStatus = await this.getApiStatus();
+    if (apiStatus.operational === false) {
+      log(`Cannot fetch Facebook data - API status: ${apiStatus.message}`, 'facebook-api');
       return null;
     }
     
@@ -132,8 +279,34 @@ class FacebookApiService {
         cost: 1,
         priority: 1
       });
-    } catch (error) {
-      console.error('Error fetching Facebook user data:', error);
+    } catch (error: any) {
+      log(`Error fetching Facebook user data: ${error.message}`, 'facebook-api');
+      
+      // Check if it's an authentication error that we can try to recover from
+      if (error.message && error.message.includes('AUTH_ERROR')) {
+        log('Authentication error detected, attempting token refresh', 'facebook-api');
+        
+        // Try to refresh the token
+        const refreshed = await this.refreshAccessToken();
+        
+        if (refreshed) {
+          log('Token refreshed, retrying fetch', 'facebook-api');
+          
+          // Retry the fetch with the new token
+          try {
+            return await this.rateLimiter.schedule({
+              execute: () => this._fetchUserData(username),
+              platform: 'facebook',
+              username,
+              cost: 1,
+              priority: 2  // Higher priority for retry
+            });
+          } catch (retryError) {
+            log(`Retry after token refresh also failed: ${retryError}`, 'facebook-api');
+          }
+        }
+      }
+      
       return null;
     }
   }
@@ -155,7 +328,7 @@ class FacebookApiService {
       });
       
       if (!userResponse.data || !userResponse.data.id) {
-        console.error('No Facebook user found with the given username:', username);
+        log(`No Facebook user found with the given username: ${username}`, 'facebook-api');
         return null;
       }
       
@@ -284,44 +457,44 @@ class FacebookApiService {
       // Validate the platform data with Zod schema
       const validationResult = platformDataSchema.safeParse(platformData);
       if (!validationResult.success) {
-        console.error('Facebook data validation failed:', validationResult.error);
+        log(`Facebook data validation failed: ${JSON.stringify(validationResult.error.issues)}`, 'facebook-api');
         return null;
       }
       
       return platformData;
     } catch (error: any) {
-      console.error('Error fetching Facebook user data:', error.message);
+      log(`Error fetching Facebook user data: ${error.message}`, 'facebook-api');
       
       // Extract detailed error information from Facebook API response
       if (error.response?.data?.error) {
         const fbError = error.response.data.error;
-        console.error('Facebook API error details:', fbError);
+        log(`Facebook API error details: ${JSON.stringify(fbError)}`, 'facebook-api');
         
         // Check for specific permission issues
         if (fbError.code === 100) {
           if (fbError.message.includes('missing permission')) {
-            console.error('Facebook API permission error: The access token is missing required permissions.');
-            console.error('Required permissions may include: pages_read_engagement, Page Public Content Access');
+            log('Facebook API permission error: The access token is missing required permissions.', 'facebook-api');
+            log('Required permissions may include: pages_read_engagement, Page Public Content Access', 'facebook-api');
             
             // Throw a more specific error that can be caught by the platform API
             throw new Error('PERMISSION_ERROR: Facebook API requires additional permissions to access this data.');
           }
           
           if (fbError.message.includes('Object does not exist')) {
-            console.error('Facebook API error: The requested username or ID does not exist or is not accessible.');
+            log('Facebook API error: The requested username or ID does not exist or is not accessible.', 'facebook-api');
             throw new Error('NOT_FOUND: The Facebook username or page does not exist or cannot be accessed.');
           }
         }
         
         // Rate limiting detection
         if (fbError.code === 4 || fbError.message.includes('rate limit')) {
-          console.error('Facebook API rate limit exceeded.');
+          log('Facebook API rate limit exceeded.', 'facebook-api');
           throw new Error('RATE_LIMITED: Facebook API rate limit exceeded. Please try again later.');
         }
         
         // Authentication errors
         if (fbError.code === 190) {
-          console.error('Facebook API authentication error: The access token is invalid or has expired.');
+          log('Facebook API authentication error: The access token is invalid or has expired.', 'facebook-api');
           throw new Error('AUTH_ERROR: Facebook API authentication failed. Access token may be invalid or expired.');
         }
       }
