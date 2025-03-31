@@ -1,36 +1,62 @@
 import React from 'react';
-import { Card, CardContent } from "@/components/ui/card";
-import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, 
-  Tooltip, ResponsiveContainer, BarChart, Bar, 
-  Legend, PieChart, Pie, Cell, LineChart, Line
-} from "recharts";
-import { 
-  CHART_COLORS, 
-  GRADIENT_COLORS,
-  TimelineActivityData,
-  formatNumber
-} from "@/lib/chart-utils";
-import { Platform } from "@shared/schema";
-import { Button } from "@/components/ui/button";
-import { DigitalFootprintResponse } from "@shared/schema";
+import { Card, CardContent } from '@/components/ui/card';
+import { Timeline, TimelineItem } from '@/components/ui/timeline';
+import { DigitalFootprintResponse } from '@shared/schema';
+import { formatDate } from '@/lib/utils';
+
+interface TimelineSectionsProps {
+  data: DigitalFootprintResponse;
+}
+
+export function TimelineSections({ data }: TimelineSectionsProps) {
+  const timelineItems = data?.platformData?.flatMap(platform =>
+    platform.contentData?.map(content => ({
+      platform: platform.platformId,
+      ...content,
+    })) || []
+  ).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  return (
+    <Card>
+      <CardContent className="pt-6">
+        <h3 className="text-lg font-semibold mb-4">Activity Timeline</h3>
+        {timelineItems && timelineItems.length > 0 ? (
+          <Timeline>
+            {timelineItems.map((item, index) => (
+              <TimelineItem
+                key={index}
+                title={`${item.platform} ${item.type}`}
+                description={item.content || ''}
+                timestamp={formatDate(item.timestamp)}
+                url={item.url}
+                engagement={item.engagement}
+              />
+            ))}
+          </Timeline>
+        ) : (
+          <p className="text-center text-gray-500 py-4">No timeline data available</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 // Privacy Assessment component that uses actual Reddit data
-export function PrivacyAssessmentSection({ 
-  data, 
-  activeData, 
-  activeMonth 
-}: { 
-  data: DigitalFootprintResponse; 
-  activeData: TimelineActivityData | null; 
+export function PrivacyAssessmentSection({
+  data,
+  activeData,
+  activeMonth
+}: {
+  data: DigitalFootprintResponse;
+  activeData: TimelineActivityData | null;
   activeMonth: string | null;
 }) {
   if (!activeData) return null;
-  
+
   // Find Reddit data to get privacy concerns
   const redditData = data.platformData.find(p => p.platformId === "reddit");
   const privacyConcerns = redditData?.analysisResults?.privacyConcerns || [];
-  
+
   // Calculate a privacy score based on the number and severity of concerns
   let privacyScore = 0;
   if (privacyConcerns.length > 0) {
@@ -44,7 +70,7 @@ export function PrivacyAssessmentSection({
     // Use the one calculated in the timeline data if available
     privacyScore = activeData.privacyScore || 0;
   }
-  
+
   return (
     <Card className="overflow-hidden glass-card rounded-xl border-none">
       <div className="bg-gradient-to-r from-emerald-50 to-teal-50/80 px-6 py-4 border-b border-white/20">
@@ -64,7 +90,7 @@ export function PrivacyAssessmentSection({
         <div className="mb-6">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-gray-500">Privacy Score</span>
-            <span 
+            <span
               className={`text-sm font-medium px-2 py-0.5 rounded-full ${
                 privacyScore <= 30
                   ? "bg-green-100 text-green-800"
@@ -77,7 +103,7 @@ export function PrivacyAssessmentSection({
             </span>
           </div>
           <div className="h-3 w-full bg-gray-100 rounded-full overflow-hidden">
-            <div 
+            <div
               className={`h-full ${
                 privacyScore <= 30
                   ? "bg-green-500"
@@ -89,7 +115,7 @@ export function PrivacyAssessmentSection({
             ></div>
           </div>
         </div>
-        
+
         <div className="space-y-4">
           {privacyConcerns.length > 0 ? (
             // Show actual privacy concerns if available
@@ -98,10 +124,10 @@ export function PrivacyAssessmentSection({
                 <p className="text-sm font-medium flex items-center justify-between">
                   <span>{concern.type}</span>
                   <span className={`text-xs px-2 py-0.5 rounded-full ${
-                    concern.severity === 'low' 
-                      ? "bg-green-100 text-green-800" 
-                      : concern.severity === 'medium' 
-                        ? "bg-amber-100 text-amber-800" 
+                    concern.severity === 'low'
+                      ? "bg-green-100 text-green-800"
+                      : concern.severity === 'medium'
+                        ? "bg-amber-100 text-amber-800"
                         : "bg-red-100 text-red-800"
                   }`}>
                     {String(concern.severity).charAt(0).toUpperCase() + String(concern.severity).slice(1)} Risk
@@ -122,7 +148,7 @@ export function PrivacyAssessmentSection({
                 </p>
                 <p className="text-xs text-gray-500 mt-1">Your activity level and visibility across platforms.</p>
               </div>
-              
+
               <div className="p-3 rounded-lg bg-white/80 border border-white/50 shadow-sm">
                 <p className="text-sm font-medium flex items-center justify-between">
                   <span>Personal Information</span>
@@ -130,7 +156,7 @@ export function PrivacyAssessmentSection({
                 </p>
                 <p className="text-xs text-gray-500 mt-1">Sensitive personal details detected in your content.</p>
               </div>
-              
+
               <div className="p-3 rounded-lg bg-white/80 border border-white/50 shadow-sm">
                 <p className="text-sm font-medium flex items-center justify-between">
                   <span>Location Sharing</span>
@@ -157,7 +183,7 @@ export function SentimentAnalysisSection({
   activeMonth: string | null;
 }) {
   if (!activeData) return null;
-  
+
   // Find Reddit data to get sentiment breakdown
   const redditData = data.platformData.find(p => p.platformId === "reddit");
   const sentimentData = redditData?.analysisResults?.sentimentBreakdown || {
@@ -165,14 +191,14 @@ export function SentimentAnalysisSection({
     neutral: activeData.sentiment?.neutral || 0.6,
     negative: activeData.sentiment?.negative || 0.2
   };
-  
+
   // Format for the pie chart
   const sentimentChartData = [
     { name: 'Positive', value: sentimentData.positive * 100, fill: GRADIENT_COLORS.sentiment.positive },
     { name: 'Neutral', value: sentimentData.neutral * 100, fill: GRADIENT_COLORS.sentiment.neutral },
     { name: 'Negative', value: sentimentData.negative * 100, fill: GRADIENT_COLORS.sentiment.negative }
   ];
-  
+
   // Determine dominant sentiment
   let dominantSentiment = "neutral";
   if (sentimentData.positive > sentimentData.neutral && sentimentData.positive > sentimentData.negative) {
@@ -180,11 +206,11 @@ export function SentimentAnalysisSection({
   } else if (sentimentData.negative > sentimentData.neutral && sentimentData.negative > sentimentData.positive) {
     dominantSentiment = "negative";
   }
-  
+
   // For sentiment samples - in a real app these would come from the API
   // We're not showing samples since our API doesn't provide them
   const sample = null;
-  
+
   return (
     <Card className="overflow-hidden glass-card rounded-xl border-none">
       <div className="bg-gradient-to-r from-sky-50 to-blue-50/80 px-6 py-4 border-b border-white/20">
@@ -223,14 +249,14 @@ export function SentimentAnalysisSection({
                   <Cell fill={GRADIENT_COLORS.sentiment.neutral} />
                   <Cell fill={GRADIENT_COLORS.sentiment.negative} />
                 </Pie>
-                <Tooltip 
-                  contentStyle={{ 
-                    borderRadius: '12px', 
+                <Tooltip
+                  contentStyle={{
+                    borderRadius: '12px',
                     boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
                     border: 'none',
                     padding: '8px 12px',
                     backgroundColor: 'rgba(255,255,255,0.95)'
-                  }} 
+                  }}
                   formatter={(value) => [`${Number(value).toFixed(1)}%`, 'Percentage']}
                 />
               </PieChart>
@@ -239,7 +265,7 @@ export function SentimentAnalysisSection({
         </div>
         <div className="p-4 bg-blue-50/60 rounded-xl">
           <p className="text-sm text-blue-700">
-            This sentiment analysis is based on <span className="font-semibold">{data.username}'s</span> content posted during {activeMonth}. 
+            This sentiment analysis is based on <span className="font-semibold">{data.username}'s</span> content posted during {activeMonth}.
             {dominantSentiment === "positive"
               ? " The overall tone is primarily positive."
               : dominantSentiment === "negative"
@@ -267,11 +293,11 @@ export function PlatformSelector({
   setActivePlatform: (platform: Platform | "all") => void;
 }) {
   if (!activeData || !activeData.platforms) return null;
-  
+
   return (
     <div className="flex flex-wrap justify-center gap-2 mt-6 p-3 frost-blur rounded-xl">
-      <Button 
-        variant={activePlatform === "all" ? "default" : "outline"} 
+      <Button
+        variant={activePlatform === "all" ? "default" : "outline"}
         size="sm"
         onClick={() => setActivePlatform("all")}
         className={`${activePlatform === "all" ? "button-gradient font-medium" : "bg-white/80 hover:bg-white"} transition-all shadow-sm`}
@@ -279,9 +305,9 @@ export function PlatformSelector({
         All Platforms
       </Button>
       {Object.keys(activeData.platforms).map(platform => (
-        <Button 
+        <Button
           key={platform}
-          variant={activePlatform === platform ? "default" : "outline"} 
+          variant={activePlatform === platform ? "default" : "outline"}
           size="sm"
           onClick={() => setActivePlatform(platform as Platform)}
           className={`${activePlatform === platform ? "button-gradient font-medium" : "bg-white/80 hover:bg-white"} transition-all shadow-sm`}
@@ -292,3 +318,16 @@ export function PlatformSelector({
     </div>
   );
 }
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, BarChart, Bar,
+  Legend, PieChart, Pie, Cell, LineChart, Line
+} from "recharts";
+import {
+  CHART_COLORS,
+  GRADIENT_COLORS,
+  TimelineActivityData,
+  formatNumber
+} from "@/lib/chart-utils";
+import { Platform } from "@shared/schema";
+import { Button } from "@/components/ui/button";

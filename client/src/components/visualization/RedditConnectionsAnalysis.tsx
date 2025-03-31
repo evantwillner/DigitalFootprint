@@ -42,9 +42,10 @@ interface RedditPlatformData extends PlatformData {
 type RedditConnectionsAnalysisProps = {
   platformData: RedditPlatformData;
   isLoading: boolean;
+  data: any; // Added to handle potential data prop
 };
 
-export function RedditConnectionsAnalysis({ platformData, isLoading }: RedditConnectionsAnalysisProps) {
+export function RedditConnectionsAnalysis({ platformData, isLoading, data }: RedditConnectionsAnalysisProps) {
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -53,7 +54,7 @@ export function RedditConnectionsAnalysis({ platformData, isLoading }: RedditCon
       </div>
     );
   }
-  
+
   if (!platformData) {
     return (
       <div className="p-4 border rounded bg-gray-50">
@@ -61,7 +62,7 @@ export function RedditConnectionsAnalysis({ platformData, isLoading }: RedditCon
       </div>
     );
   }
-  
+
   // Define interfaces for working with the data
   interface SubredditInfo {
     name: string;
@@ -92,7 +93,7 @@ export function RedditConnectionsAnalysis({ platformData, isLoading }: RedditCon
     role: community.userRole || 'Member',
     activityLevel: community.activityLevel || 'Low'
   }));
-  
+
   // Extract user interactions from platformData
   const userInteractions: UserInteraction[] = (platformData.connections || []).map((connection: RedditConnection) => ({
     name: connection.username || 'unknown_user',
@@ -101,7 +102,7 @@ export function RedditConnectionsAnalysis({ platformData, isLoading }: RedditCon
     mutual: connection.isMutual || Math.random() > 0.5,
     lastInteraction: connection.lastInteraction || new Date().toISOString()
   })).sort((a: UserInteraction, b: UserInteraction) => b.interactions - a.interactions).slice(0, 5);
-  
+
   // Create connection stats
   const connectionStats = {
     total: platformData.statistics?.totalConnections || userInteractions.length,
@@ -109,7 +110,7 @@ export function RedditConnectionsAnalysis({ platformData, isLoading }: RedditCon
     communities: platformData.communities?.length || subreddits.length,
     activeConversations: platformData.statistics?.activeConversations || Math.min(5, userInteractions.length)
   };
-  
+
   // Calculate the distribution of subreddit types based on available data
   const subredditCategories: SubredditCategories = subreddits.reduce((acc: SubredditCategories, subreddit: SubredditInfo) => {
     const name = subreddit.name.toLowerCase();
@@ -124,7 +125,7 @@ export function RedditConnectionsAnalysis({ platformData, isLoading }: RedditCon
     }
     return acc;
   }, { tech: 0, gaming: 0, discussion: 0, other: 0 });
-  
+
   // Create pie chart data
   const communityDistributionData = [
     { name: "Tech", value: subredditCategories.tech || 3 },
@@ -132,9 +133,16 @@ export function RedditConnectionsAnalysis({ platformData, isLoading }: RedditCon
     { name: "Discussion", value: subredditCategories.discussion || 2 },
     { name: "Other", value: subredditCategories.other || 1 },
   ];
-  
+
   return (
     <div className="space-y-6">
+      {/* Summary Tab - Placeholder for actual data */}
+      <div className="bg-gray-100 p-4 rounded">
+        <h2 className="text-lg font-bold mb-2">Summary</h2>
+        <p>Exposure Score: {data?.summary?.exposureScore || "Loading..."}</p>
+        <p>Platform Data: {JSON.stringify(data?.summary?.platformData) || "Loading..."}</p> {/* Example; Replace with actual rendering */}
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <h3 className="text-md font-medium mb-3">Subreddit Categories</h3>
@@ -152,9 +160,9 @@ export function RedditConnectionsAnalysis({ platformData, isLoading }: RedditCon
                     label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                   >
                     {communityDistributionData.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={CHART_COLORS[index % CHART_COLORS.length]} 
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={CHART_COLORS[index % CHART_COLORS.length]}
                       />
                     ))}
                   </Pie>
@@ -165,7 +173,7 @@ export function RedditConnectionsAnalysis({ platformData, isLoading }: RedditCon
             </CardContent>
           </Card>
         </div>
-        
+
         <div>
           <h3 className="text-md font-medium mb-3">Reddit Stats</h3>
           <Card className="h-64">
@@ -178,19 +186,19 @@ export function RedditConnectionsAnalysis({ platformData, isLoading }: RedditCon
                   </SparkleEffect>
                   <p className="text-xs text-gray-500 mt-1">Communities joined</p>
                 </div>
-                
+
                 <div className="flex flex-col items-center justify-center bg-orange-50 rounded-lg p-4">
                   <p className="text-gray-600 text-sm">Connections</p>
                   <p className="text-3xl font-bold text-orange-600 mt-2">{connectionStats.total}</p>
                   <p className="text-xs text-gray-500 mt-1">Reddit users</p>
                 </div>
-                
+
                 <div className="flex flex-col items-center justify-center bg-orange-50 rounded-lg p-4">
                   <p className="text-gray-600 text-sm">Mutual</p>
                   <p className="text-3xl font-bold text-orange-600 mt-2">{connectionStats.mutual}</p>
                   <p className="text-xs text-gray-500 mt-1">Two-way interactions</p>
                 </div>
-                
+
                 <div className="flex flex-col items-center justify-center bg-orange-50 rounded-lg p-4">
                   <p className="text-gray-600 text-sm">Active Threads</p>
                   <SparkleEffect isActive={connectionStats.activeConversations > 3} colors={["#FF4500", "#FF8C5A"]} size={10}>
@@ -203,7 +211,7 @@ export function RedditConnectionsAnalysis({ platformData, isLoading }: RedditCon
           </Card>
         </div>
       </div>
-      
+
       <div>
         <h3 className="text-md font-medium mb-3">Frequent Reddit Interactions</h3>
         <Card>
@@ -245,35 +253,29 @@ export function RedditConnectionsAnalysis({ platformData, isLoading }: RedditCon
           </CardContent>
         </Card>
       </div>
-      
+
       <div>
         <h3 className="text-md font-medium mb-3">Subreddits</h3>
         <Card>
           <CardContent className="p-6">
             <div className="space-y-4">
-              {subreddits.length > 0 ? (
-                subreddits.map((subreddit: SubredditInfo, index: number) => (
-                  <div key={index}>
-                    <div className="flex items-center justify-between">
+              {data?.platformData?.find(p => p.platformId === 'reddit')?.activityData?.topSubreddits ? (
+                data.platformData.find(p => p.platformId === 'reddit')?.activityData?.topSubreddits?.map((subreddit, index) => (
+                  <div key={index} className="py-4">
+                    <div className="flex justify-between items-start">
                       <div>
-                        <p className="font-medium">{subreddit.name}</p>
-                        <div className="flex items-center text-sm text-gray-500">
-                          <Badge variant="outline" className="mr-2 bg-orange-50 text-orange-800 border-orange-200">
-                            <SiReddit className="mr-1" /> reddit
-                          </Badge>
-                          <span>{typeof subreddit.members === 'number' 
-                            ? new Intl.NumberFormat().format(subreddit.members)
-                            : subreddit.members} members</span>
-                        </div>
+                        <h4 className="font-medium">r/{subreddit}</h4>
+                        <p className="text-sm text-gray-600">Active community member</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="outline" className="bg-gray-50">
-                          {subreddit.activityLevel} Activity
+                          Regular Activity
                         </Badge>
-                        <Badge>{subreddit.role}</Badge>
                       </div>
                     </div>
-                    {index < subreddits.length - 1 && <Separator className="mt-4" />}
+                    {index < (data.platformData.find(p => p.platformId === 'reddit')?.activityData?.topSubreddits?.length || 0) - 1 &&
+                      <Separator className="mt-4" />
+                    }
                   </div>
                 ))
               ) : (
@@ -283,6 +285,13 @@ export function RedditConnectionsAnalysis({ platformData, isLoading }: RedditCon
           </CardContent>
         </Card>
       </div>
+
+      {/* Timeline Section - Placeholder */}
+      <div className="bg-gray-100 p-4 rounded">
+        <h2 className="text-lg font-bold mb-2">Timeline</h2>
+        <p>Timeline data is currently unavailable.  This section needs to be implemented.</p>
+      </div>
+
     </div>
   );
 }

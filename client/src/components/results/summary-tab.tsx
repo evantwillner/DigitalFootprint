@@ -575,11 +575,11 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
         {/* Dynamic exposure score card that adapts to the platform */}
         <StatCard 
           title={`${primaryPlatform ? PLATFORM_CONFIG[primaryPlatform as Platform].name : "Platform"} Exposure Score`} 
-          value={redditData?.analysisResults?.exposureScore || 0} 
+          value={data?.summary?.exposureScore || 0} 
           subValue="/ 100" 
           description={
             (() => {
-              const score = redditData?.analysisResults?.exposureScore || 0;
+              const score = data?.summary?.exposureScore || 0;
               const platformName = primaryPlatform ? PLATFORM_CONFIG[primaryPlatform as Platform].name : "Platform";
               
               if (score > 75) return `High ${platformName} visibility`;
@@ -587,7 +587,7 @@ export default function SummaryTab({ data, isLoading }: TabContentProps) {
               return `Moderate ${platformName} visibility`;
             })()
           }
-          progress={redditData?.analysisResults?.exposureScore || 0}
+          progress={data?.summary?.exposureScore || 0}
         />
         
         {/* Platform details card */}

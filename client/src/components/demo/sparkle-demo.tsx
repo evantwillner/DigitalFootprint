@@ -103,13 +103,17 @@ export const SparkleDemo: React.FC = () => {
                   <h4 className="text-sm font-medium mb-2">Time Analysis</h4>
                   <p className="text-sm mb-2">User most active during:</p>
                   <ul className="text-sm space-y-2">
-                    <li>Mornings (8-10 AM): 15%</li>
-                    <li>Afternoons (1-3 PM): 25%</li>
-                    <li>
-                      <NewInsight color="purple" highlightText={false}>
-                        <span className="font-medium">Evenings (8-11 PM): 60%</span>
-                      </NewInsight>
-                    </li>
+                    {data?.platformData?.[0]?.analysisResults?.activityTimeline?.map((timeSlot, index) => (
+                      <li key={index}>
+                        {index === 0 ? (
+                          <NewInsight color="purple" highlightText={false}>
+                            <span className="font-medium">{timeSlot.period}: {timeSlot.count}%</span>
+                          </NewInsight>
+                        ) : (
+                          `${timeSlot.period}: ${timeSlot.count}%`
+                        )}
+                      </li>
+                    )) || <li>No activity data available</li>}
                   </ul>
                 </div>
                 
