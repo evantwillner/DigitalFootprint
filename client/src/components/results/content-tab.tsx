@@ -9,6 +9,8 @@ import { CHART_COLORS } from "@/lib/chart-utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import RedditContentAnalysis from "@/components/visualization/RedditContentAnalysis";
+import { FacebookSentimentAnalysis } from "@/components/visualization/FacebookSentimentAnalysis";
+import { TwitterSentimentAnalysis } from "@/components/visualization/TwitterSentimentAnalysis";
 import { SparkleEffect } from "@/components/ui/sparkle-effect";
 import { FileText, MessageCircle, MessageSquare, Eye, BarChart2, PieChart as PieChartIcon } from "lucide-react";
 import { PLATFORM_CONFIG } from "@/lib/platform-icons";
@@ -31,6 +33,8 @@ export default function ContentTab({ data, isLoading }: TabContentProps) {
   
   // Check for specific platforms
   const redditData = platformDataMap.get('reddit');
+  const facebookData = platformDataMap.get('facebook');
+  const twitterData = platformDataMap.get('twitter');
   
   // Sample sentiment data
   const sentimentData = [
@@ -103,7 +107,7 @@ export default function ContentTab({ data, isLoading }: TabContentProps) {
         </p>
       </div>
       
-      {/* Reddit-specific content analysis section using our new component */}
+      {/* Reddit-specific content analysis section */}
       {redditData && (
         <div className="mb-8">
           <div className="flex items-center mb-4">
@@ -122,8 +126,46 @@ export default function ContentTab({ data, isLoading }: TabContentProps) {
         </div>
       )}
       
-      {/* If no Reddit data, show generic content analysis */}
-      {!redditData && (
+      {/* Facebook sentiment analysis section */}
+      {facebookData && (
+        <div className="mb-8">
+          <div className="flex items-center mb-4">
+            <div className="mr-2">
+              {PLATFORM_CONFIG.facebook.icon}
+            </div>
+            <h3 className="text-xl font-semibold text-gray-800">
+              Facebook Content Analysis
+            </h3>
+          </div>
+          
+          <FacebookSentimentAnalysis 
+            platformData={facebookData}
+            isLoading={isLoading}
+          />
+        </div>
+      )}
+      
+      {/* Twitter/X sentiment analysis section */}
+      {twitterData && (
+        <div className="mb-8">
+          <div className="flex items-center mb-4">
+            <div className="mr-2">
+              {PLATFORM_CONFIG.twitter.icon}
+            </div>
+            <h3 className="text-xl font-semibold text-gray-800">
+              Twitter/X Content Analysis
+            </h3>
+          </div>
+          
+          <TwitterSentimentAnalysis 
+            platformData={twitterData}
+            isLoading={isLoading}
+          />
+        </div>
+      )}
+      
+      {/* If no specific platform data, show generic content analysis */}
+      {!redditData && !facebookData && !twitterData && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             <div>
