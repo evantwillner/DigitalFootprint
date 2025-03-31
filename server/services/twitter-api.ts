@@ -2,6 +2,7 @@ import { TwitterApi } from 'twitter-api-v2';
 import { Platform, PlatformData } from '@shared/schema';
 import { log } from '../vite';
 import { openAiSentiment } from './openai-sentiment';
+import { tokenManager } from './token-manager';
 
 /**
  * Twitter API Service - Manages interactions with the Twitter/X API
@@ -10,30 +11,70 @@ import { openAiSentiment } from './openai-sentiment';
  * when users want to remove their digital footprint.
  */
 export class TwitterApiService {
-  private readonly client: TwitterApi | null = null;
+  private client: TwitterApi | null = null;
   private isConfigured: boolean = false;
 
   constructor() {
+    // Initialize the client asynchronously
+    this.initializeClient();
+  }
+
+  /**
+   * Initialize the Twitter API client using the token manager
+   * This allows for automatic token refresh and better error handling
+   */
+  private async initializeClient(): Promise<void> {
     try {
-      if (
-        process.env.TWITTER_API_KEY &&
-        process.env.TWITTER_API_SECRET &&
-        process.env.TWITTER_BEARER_TOKEN
-      ) {
-        this.client = new TwitterApi(process.env.TWITTER_BEARER_TOKEN);
+      // Get the Twitter token from the token manager
+      const token = await tokenManager.getToken('twitter', true);
+      
+      if (token && token.accessToken) {
+        this.client = new TwitterApi(token.accessToken);
         this.isConfigured = true;
-        log('Twitter API Service initialized with bearer token', 'twitter-api');
-        
-        // We'll consider the API configured if we have credentials,
-        // even if they're rate limited or temporarily unavailable.
-        // The operational status is determined separately via getApiStatus()
+        log('Twitter API Service initialized with token from TokenManager', 'twitter-api');
       } else {
-        log('⚠️ Twitter API Service not configured - missing API keys', 'twitter-api');
+        // If we don't have a token from the token manager, fall back to environment variables
+        if (
+          process.env.TWITTER_API_KEY &&
+          process.env.TWITTER_API_SECRET &&
+          process.env.TWITTER_BEARER_TOKEN
+        ) {
+          this.client = new TwitterApi(process.env.TWITTER_BEARER_TOKEN);
+          this.isConfigured = true;
+          log('Twitter API Service initialized with environment bearer token', 'twitter-api');
+        } else {
+          log('⚠️ Twitter API Service not configured - missing API keys', 'twitter-api');
+          this.isConfigured = false;
+        }
       }
     } catch (error) {
       log(`Error initializing Twitter API: ${error}`, 'twitter-api');
       this.client = null;
       this.isConfigured = false;
+    }
+  }
+  
+  /**
+   * Refresh the Twitter API client with a new token
+   * Called when a token is expired or invalid
+   */
+  private async refreshClient(): Promise<boolean> {
+    try {
+      // Request token manager to refresh the token
+      const refreshedToken = await tokenManager.refreshToken('twitter');
+      
+      if (refreshedToken && refreshedToken.accessToken) {
+        // Create a new client with the refreshed token
+        this.client = new TwitterApi(refreshedToken.accessToken);
+        this.isConfigured = true;
+        log('Twitter API client refreshed with new token', 'twitter-api');
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      log(`Error refreshing Twitter API client: ${error}`, 'twitter-api');
+      return false;
     }
   }
 
@@ -61,10 +102,21 @@ export class TwitterApiService {
     if (!this.isConfigured) {
       const status = {
         configured: false,
-        message: 'Twitter API not configured. Add TWITTER_API_KEY, TWITTER_API_SECRET, and TWITTER_BEARER_TOKEN to environment.'
+        message: 'Twitter API not configured. Attempting to initialize from TokenManager.'
       };
-      this.apiStatusCache = { status, timestamp: Date.now() };
-      return status;
+      
+      // Try to initialize from token manager
+      await this.initializeClient();
+      
+      // If still not configured after initialization attempt
+      if (!this.isConfigured) {
+        const status = {
+          configured: false,
+          message: 'Twitter API not configured. This may be resolved automatically through the token management service.'
+        };
+        this.apiStatusCache = { status, timestamp: Date.now() };
+        return status;
+      }
     }
     
     // Check if we're currently rate limited by our own tracker
@@ -94,10 +146,28 @@ export class TwitterApiService {
         const status = {
           configured: true,
           operational: false,
-          message: 'Twitter API credentials are configured but not working. Credentials may be expired or invalid.'
+          message: 'Twitter API credentials are configured but not working. Attempting to refresh credentials.'
         };
-        this.apiStatusCache = { status, timestamp: Date.now() };
-        return status;
+        
+        // Try to refresh the client
+        const refreshed = await this.refreshClient();
+        if (refreshed) {
+          const status = {
+            configured: true,
+            operational: true,
+            message: 'Twitter API token refreshed and now operational.'
+          };
+          this.apiStatusCache = { status, timestamp: Date.now() };
+          return status;
+        } else {
+          const status = {
+            configured: true,
+            operational: false,
+            message: 'Twitter API credentials could not be refreshed. Will continue trying automatically.'
+          };
+          this.apiStatusCache = { status, timestamp: Date.now() };
+          return status;
+        }
       }
 
       const status = {
@@ -108,16 +178,32 @@ export class TwitterApiService {
       this.apiStatusCache = { status, timestamp: Date.now() };
       return status;
     } catch (error: any) {
-      // If we get a 401, the credentials are invalid
+      // If we get a 401, the credentials are invalid - try to refresh
       if (error.code === 401 || error.message.includes('401')) {
-        this.isConfigured = false; // Update status
-        const status = {
-          configured: false,
-          operational: false,
-          message: 'Twitter API credentials are expired or invalid. Please update the credentials.'
-        };
-        this.apiStatusCache = { status, timestamp: Date.now() };
-        return status;
+        log('Twitter API authentication failed (401) - attempting token refresh', 'twitter-api');
+        
+        // Try to refresh the token and client
+        const refreshed = await this.refreshClient();
+        
+        if (refreshed) {
+          const status = {
+            configured: true,
+            operational: true, 
+            message: 'Twitter API token refreshed and now operational.'
+          };
+          this.apiStatusCache = { status, timestamp: Date.now() };
+          return status;
+        } else {
+          // If refresh failed, update status
+          this.isConfigured = false;
+          const status = {
+            configured: false,
+            operational: false,
+            message: 'Twitter API credentials are expired or invalid. Automatic refresh was attempted but failed. Token management system will continue trying periodically.'
+          };
+          this.apiStatusCache = { status, timestamp: Date.now() };
+          return status;
+        }
       }
       
       // Check for rate limiting (429)
@@ -177,8 +263,14 @@ export class TwitterApiService {
   public async fetchUserData(username: string): Promise<PlatformData | null> {
     // First check if the API is operational
     if (!this.client || !this.isConfigured) {
-      log('Cannot fetch Twitter data - API not configured', 'twitter-api');
-      return null;
+      log('Twitter API not configured, attempting to initialize', 'twitter-api');
+      await this.initializeClient();
+      
+      // If still not configured after initialization attempt
+      if (!this.client || !this.isConfigured) {
+        log('Cannot fetch Twitter data - API initialization failed', 'twitter-api');
+        return null;
+      }
     }
     
     // Normalize username (remove @ if present)
@@ -217,14 +309,35 @@ export class TwitterApiService {
       
       log(`Fetching Twitter data for ${normalizedUsername}`, 'twitter-api');
       
-      // Fetch user by username with exponential backoff for rate limiting
-      const userResponse = await this.fetchWithBackoff(() => 
-        this.client!.v2.userByUsername(normalizedUsername, {
-          'user.fields': 'description,profile_image_url,public_metrics,created_at,location,url'
-        })
-      );
+      let userResponse;
+      try {
+        // Fetch user by username with exponential backoff for rate limiting
+        userResponse = await this.fetchWithBackoff(() => 
+          this.client!.v2.userByUsername(normalizedUsername, {
+            'user.fields': 'description,profile_image_url,public_metrics,created_at,location,url'
+          })
+        );
+      } catch (error: any) {
+        // If we got an auth error, try refreshing the token once
+        if (error.code === 401 || error.message.includes('401')) {
+          log('Token expired during user fetch, attempting refresh', 'twitter-api');
+          const refreshed = await this.refreshClient();
+          if (refreshed) {
+            // Retry with the new token
+            userResponse = await this.fetchWithBackoff(() => 
+              this.client!.v2.userByUsername(normalizedUsername, {
+                'user.fields': 'description,profile_image_url,public_metrics,created_at,location,url'
+              })
+            );
+          } else {
+            throw error; // Re-throw if refresh failed
+          }
+        } else {
+          throw error; // Re-throw other errors
+        }
+      }
       
-      if (!userResponse.data) {
+      if (!userResponse || !userResponse.data) {
         log(`No Twitter user found for username: ${normalizedUsername}`, 'twitter-api');
         return null;
       }
@@ -234,22 +347,45 @@ export class TwitterApiService {
       // Wait before making another API call to respect rate limits
       await this.rateLimitedWait(500); // 500ms between calls
       
+      let tweetsResponse;
       // Fetch recent tweets by the user
       const userId = user.id;
-      const tweetsResponse = await this.fetchWithBackoff(() => 
-        this.client!.v2.userTimeline(userId, {
-          max_results: 10,
-          'tweet.fields': 'created_at,public_metrics,attachments',
-          expansions: 'attachments.media_keys'
-        })
-      );
+      try {
+        tweetsResponse = await this.fetchWithBackoff(() => 
+          this.client!.v2.userTimeline(userId, {
+            max_results: 10,
+            'tweet.fields': 'created_at,public_metrics,attachments',
+            expansions: 'attachments.media_keys'
+          })
+        );
+      } catch (error: any) {
+        // If we got an auth error, try refreshing the token once
+        if (error.code === 401 || error.message.includes('401')) {
+          log('Token expired during tweets fetch, attempting refresh', 'twitter-api');
+          const refreshed = await this.refreshClient();
+          if (refreshed) {
+            // Retry with the new token
+            tweetsResponse = await this.fetchWithBackoff(() => 
+              this.client!.v2.userTimeline(userId, {
+                max_results: 10,
+                'tweet.fields': 'created_at,public_metrics,attachments',
+                expansions: 'attachments.media_keys'
+              })
+            );
+          } else {
+            throw error; // Re-throw if refresh failed
+          }
+        } else {
+          throw error; // Re-throw other errors
+        }
+      }
       
       const tweets = tweetsResponse.data.data || [];
       
       // Transform data to our platform format (this is now async)
       const result: PlatformData = await this.transformUserData(user, tweets, normalizedUsername);
       
-      // Cache the result
+      // Cache the result with a longer expiration for successful results
       this.userDataCache.set(normalizedUsername, {
         data: result,
         timestamp: Date.now()
@@ -265,10 +401,23 @@ export class TwitterApiService {
         this.handleRateLimitExceeded();
         throw new Error('RATE_LIMITED: Twitter API rate limit exceeded. Please try again later.');
       } else if (error.code === 401 || error.message.includes('401')) {
-        log('Twitter API authentication failed - credentials may be expired or invalid', 'twitter-api');
+        log('Twitter API authentication failed after refresh attempt', 'twitter-api');
         // Mark the API as not properly configured so future calls will fail quickly
         this.isConfigured = false;
-        throw new Error('AUTH_ERROR: Twitter API authentication failed. Access tokens may be invalid or expired.');
+        
+        // Schedule a refresh attempt in the background
+        setTimeout(() => {
+          this.refreshClient().then(success => {
+            if (success) {
+              log('Twitter token refreshed successfully in background', 'twitter-api');
+              this.isConfigured = true;
+            }
+          }).catch(err => {
+            log(`Background token refresh failed: ${err.message}`, 'twitter-api');
+          });
+        }, 5000); // Try again in 5 seconds
+        
+        throw new Error('AUTH_ERROR: Twitter API authentication failed. The system will try to refresh automatically.');
       } else if (error.code === 403) {
         log('Twitter API permission denied - credentials may lack necessary scopes', 'twitter-api');
         throw new Error('PERMISSION_ERROR: Twitter API requires additional permissions to access this data.');
