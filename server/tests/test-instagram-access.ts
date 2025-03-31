@@ -7,7 +7,7 @@
  * To run: npx tsx server/test-instagram-access.ts <username>
  */
 
-import { instagramApi } from './services/instagram-api';
+import { instagramApi } from '../services/instagram-api';
 
 async function testInstagramAPI() {
   // Get username from command line argument
