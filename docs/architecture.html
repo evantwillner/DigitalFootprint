@@ -12,41 +12,41 @@
     </script>
 </head>
 <body>
-    <pre class="mermaid">
-    graph TD
-        Client[Client Layer]
-        Server[Server Layer]
-        Auth[Authentication Service]
-        Storage[Storage Service]
-        Cache[Cache Service]
-        RateLimit[Rate Limiter]
-        APIs[Platform APIs]
-        DB[(Database)]
+    <div class="mermaid">
+        graph TD
+            Client[Client Layer]
+            Server[Server Layer]
+            Auth[Authentication Service]
+            Storage[Storage Service]
+            Cache[Cache Service]
+            RateLimit[Rate Limiter]
+            APIs[Platform APIs]
+            DB[(Database)]
 
-        Client --> |API Requests| Server
-        Server --> |User Auth| Auth
-        Server --> |Data Operations| Storage
-        Storage --> |Cache Check| Cache
-        Storage --> |Rate Check| RateLimit
-        Storage --> |Data Store| DB
-        Storage --> |Platform Requests| APIs
+            Client --> |API Requests| Server
+            Server --> |User Auth| Auth
+            Server --> |Data Operations| Storage
+            Storage --> |Cache Check| Cache
+            Storage --> |Rate Check| RateLimit
+            Storage --> |Data Store| DB
+            Storage --> |Platform Requests| APIs
 
-        subgraph Platform_APIs
-            Twitter[Twitter API]
-            Instagram[Instagram API]
-            Facebook[Facebook API]
-            Reddit[Reddit API]
-        end
+            subgraph Platform_APIs[Platform APIs]
+                Twitter[Twitter API]
+                Instagram[Instagram API]
+                Facebook[Facebook API]
+                Reddit[Reddit API]
+            end
 
-        subgraph Core_Services
-            TokenManager[Token Manager]
-            PlatformAPI[Platform API Service]
-            SearchService[Search Service]
-            Analytics[Analytics Service]
-        end
+            subgraph Core_Services[Core Services]
+                TokenManager[Token Manager]
+                PlatformAPI[Platform API Service]
+                SearchService[Search Service]
+                Analytics[Analytics Service]
+            end
 
-        Server --> Core_Services
-        Core_Services --> Platform_APIs
-    </pre>
+            Server --> Core_Services
+            Core_Services --> Platform_APIs
+    </div>
 </body>
 </html>
